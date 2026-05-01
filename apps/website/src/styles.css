@@ -148,7 +148,6 @@ a {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
 }
 
 .headline {
@@ -303,7 +302,6 @@ a {
     width: auto;
     margin: 0;
     padding: 20px 20px 20px;
-    height: auto;
   }
 
   .site-header {
