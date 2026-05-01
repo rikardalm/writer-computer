@@ -307,10 +307,11 @@ pub fn create_file_impl(path: &str) -> Result<FileContent, AppError> {
     if let Some(parent) = file_path.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(&file_path, "")?;
+    let default_content = "# ";
+    fs::write(&file_path, default_content)?;
     Ok(FileContent {
         path: path.to_string(),
-        content: String::new(),
+        content: default_content.to_string(),
         modified_at: modified_time(&file_path),
     })
 }
