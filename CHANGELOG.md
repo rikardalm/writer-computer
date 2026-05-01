@@ -2,7 +2,7 @@
 
 ## 2026-05-01
 
-- Replace the app icon.
+- Update the app icon.
 - Default new document content to a heading prompt (`# `) so a fresh file opens ready for a title.
 
 ## 2026-04-30
