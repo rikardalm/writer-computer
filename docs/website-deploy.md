@@ -7,8 +7,7 @@ The marketing website lives in `apps/website/` and deploys to the existing Cloud
 - Worker config: `wrangler.jsonc`
 - Worker name: `writer-website`
 - Static assets directory: `apps/website/dist`
-- Production URL: `https://writter.computer`
-- Worker preview URL: `https://writer-website.soluthemes.workers.dev`
+- Production URL: `https://writer.computer`
 
 The Worker name in Cloudflare must match `name` in `wrangler.jsonc` so local deploys update the intended service.
 
