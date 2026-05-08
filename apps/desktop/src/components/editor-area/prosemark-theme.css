@@ -123,10 +123,6 @@
     padding-right:12px;
 }
 
-.cm-editor .cm-fenced-code-line-first {
-    padding-top: 12px;
-    padding-bottom: 12px;
-}
 
 /* Reduce height of blank lines used as block separators */
 .cm-editor .cm-line:has(> br:only-child) {
