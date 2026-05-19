@@ -8,7 +8,8 @@ Render mermaid fenced code blocks inside a fixed-height "canvas" widget — like
 
 - Render every mermaid block inside a fixed-height, full-width container regardless of the diagram's natural size.
 - Provide pan (drag) and zoom (in / out / reset to fit) controls inside the widget.
-- Provide a small toggle button on the widget that enters "edit code" mode (reveals the fenced source) and another to return to the rendered diagram.
+- Provide a small icon toggle on the widget that enters "edit code" mode (reveals the fenced source) and returns to the rendered diagram.
+- Render the inline source editor selection with CodeMirror's `drawSelection()` layer, not the browser-native `::selection` highlight.
 - Render synchronously per widget against a bounded cache so scrolling and theme switches stay smooth without an IntersectionObserver-driven deferral that can miss transitions.
 - Keep the widget keyboard-accessible: focusable container, arrow-key pan, `+` / `-` / `0` for zoom in / zoom out / reset, `Enter` to toggle edit mode.
 
@@ -23,9 +24,10 @@ Render mermaid fenced code blocks inside a fixed-height "canvas" widget — like
 
 - Default widget height: 480px (single tunable constant).
 - Diagram is initially rendered "fit to viewport" — scaled so the full SVG is visible inside the canvas with a small inset.
-- Two corner control clusters: an "Edit code" pill in the top-right, and a vertical `+` / `−` zoom stack in the bottom-right. Both fade in on hover/focus and stay visible while the widget has focus. Reset-to-fit is keyboard-only (`0`) — no dedicated button. No live zoom % indicator.
+- Two corner control clusters: a 28px code icon toggle in the top-right, and a vertical reset / `+` / `−` zoom stack in the bottom-right. Both fade in on hover/focus and stay visible while the widget has focus. The reset button mirrors the `0` keyboard shortcut and restores the fit-to-viewport pan/zoom state. No live zoom % indicator.
+- The code pane opens and closes instantly; avoid animated motion in the editor panel so toggling source view feels like a direct editing action. Refit the diagram after the layout change lands.
 - Pan: click-and-drag inside the canvas, or arrow keys when focused. Cursor changes to `grab` / `grabbing`.
-- Zoom: mouse wheel with `⌘`/`Ctrl` modifier, pinch on trackpad, or the +/– buttons. Zoom range clamped (0.25× – 4×). Zoom anchors on the cursor position when using wheel/pinch, and on the viewport center when using buttons.
+- Zoom: mouse wheel with `⌘`/`Ctrl` modifier, pinch on trackpad, or the +/– buttons. WebKit's synthetic Ctrl-wheel pinch path uses a higher sensitivity so small trackpad deltas feel responsive. Zoom range clamped (0.25× – 4×). Zoom anchors on the cursor position when using wheel/pinch, and on the viewport center when using buttons.
 - "Edit code" toggle dispatches a **range selection covering the entire fence** (`EditorSelection.single(fenceTo, fenceFrom)`). The reverse-anchor convention matches `selectAllDecorationsOnSelectExtension` in `@prosemark/core`. `selectionTouchesRange` is overlap-based with inclusive bounds (`a.from <= b.to && b.from <= a.to`), so a range selection always flips the syntax facet into edit mode regardless of where the head lands inside the fence. The "Preview" affordance dispatches a caret at `fenceTo + 1` (clamped) so the selection no longer overlaps the fence range.
 - Errors render inside the canvas frame (border + fixed height retained) with the error message centred and styled via the `cm-mermaid-error` modifier; controls are not mounted in the error path.
 
@@ -40,6 +42,7 @@ Render mermaid fenced code blocks inside a fixed-height "canvas" widget — like
 - Render is synchronous in `toDOM`: `beautiful-mermaid` is sync, the SVG cache makes repeat renders O(map lookup), and CodeMirror only calls `toDOM` for widgets in its viewport buffer. Mounting in the same frame the wrapper enters the DOM means there's no async gap that can leave the user stuck on a "Loading…" placeholder, and no IntersectionObserver to fire spuriously after a toggle (which previously caused a "click → flash of source → mermaid re-renders" blink).
 - Renderer (`beautiful-mermaid`) emits a self-contained SVG whose theming flows from CSS custom properties — pass `bg: var(--bg-base)` / `fg: var(--fg-base)` / `transparent: true` and a single cached SVG works in both light and dark themes without re-rendering. The SVG output is sanitised (script blocks and `on*=` event handlers stripped) before cache insert as defense-in-depth.
 - The SVG cache is bounded LRU (~50 entries) so a long session with many distinct mermaid sources does not leak.
+- The nested CodeMirror source editor includes `drawSelection()` and the Mermaid canvas stylesheet scopes native `::selection` to transparent inside `.cm-mermaid-canvas-editor`. This avoids a doubled native-plus-drawn selection while preserving the document editor's broader native-selection fallback.
 
 ## Files Expected To Change
 
@@ -51,8 +54,9 @@ Render mermaid fenced code blocks inside a fixed-height "canvas" widget — like
 ## Acceptance Criteria
 
 - Every rendered mermaid block occupies the same fixed height, regardless of diagram size.
-- Drag-pan and wheel-zoom (with `⌘`/`Ctrl` modifier) work inside the widget; the +/− zoom buttons work.
-- Clicking the "Edit code" toggle selects the entire fence and reveals the source for editing; clicking "Preview" (or moving the caret out of the fence) returns to the rendered canvas. Cross-widget clicks don't interfere — each click resolves its own fence range live.
+- Drag-pan and wheel-zoom (with `⌘`/`Ctrl` modifier) work inside the widget; the reset and +/− zoom buttons work.
+- Clicking the code icon toggle selects the entire fence and reveals the source for editing; clicking the active code toggle (or moving the caret out of the fence) returns to the rendered canvas. Cross-widget clicks don't interfere — each click resolves its own fence range live.
 - Keyboard: focusing the widget enables arrow-key pan, `+` / `-` zoom, `0` reset-to-fit, and `Enter` toggle.
+- Text selected inside the inline source editor shows the drawn CodeMirror selection only, with no native browser highlight layered over it.
 - Scrolling a long document with many diagrams stays smooth; the heightmap does not jump as widgets enter/leave the viewport.
 - Theme switch flips diagram colours without a visible re-render (CSS custom properties resolve at paint time); errors render inside the canvas frame with the border and fixed height retained.
