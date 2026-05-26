@@ -30,7 +30,7 @@ vp dlx wrangler login
 Verify the deployment:
 
 ```sh
-curl -I https://writter.computer
+curl -I https://writer.computer
 ```
 
 ## Notes
