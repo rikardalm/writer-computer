@@ -1,8 +1,12 @@
 import { type EditorState, type Range } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, ViewUpdate, WidgetType } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
+import type { SyntaxNode } from "@lezer/common";
+import { GFM, parser as markdownParser } from "@lezer/markdown";
+import * as emoji from "node-emoji";
 import {
   foldableSyntaxFacet,
+  prosemarkMarkdownSyntaxExtensions,
   selectAllDecorationsOnSelectExtension,
 } from "@/lib/prosemark-core/main";
 
@@ -18,11 +22,64 @@ interface ParsedTable {
   rows: string[][];
 }
 
+export type TableCellInlineNode =
+  | { type: "text"; text: string }
+  | { type: "break" }
+  | {
+      type: "element";
+      tag: "strong" | "em" | "code" | "s" | "span";
+      className?: string;
+      href?: string;
+      children: TableCellInlineNode[];
+    };
+
+const tableCellMarkdownParser = markdownParser.configure([GFM, prosemarkMarkdownSyntaxExtensions]);
+const defaultHiddenMarkdownMarks = new Set([
+  "CodeMark",
+  "EmphasisMark",
+  "EscapeMark",
+  "LinkMark",
+  "StrikethroughMark",
+]);
+const linkHiddenMarkdownNodes = new Set([
+  ...defaultHiddenMarkdownMarks,
+  "LinkLabel",
+  "LinkTitle",
+  "URL",
+]);
+
+function isEscapedAt(text: string, index: number): boolean {
+  let backslashes = 0;
+  for (let i = index - 1; i >= 0 && text[i] === "\\"; i--) {
+    backslashes++;
+  }
+  return backslashes % 2 === 1;
+}
+
 function parseCells(line: string): string[] {
   const trimmed = line.trim();
-  const inner = trimmed.startsWith("|") ? trimmed.slice(1) : trimmed;
-  const stripped = inner.endsWith("|") ? inner.slice(0, -1) : inner;
-  return stripped.split("|").map((c) => c.trim());
+  const start = trimmed.startsWith("|") ? 1 : 0;
+  const end =
+    trimmed.endsWith("|") && !isEscapedAt(trimmed, trimmed.length - 1)
+      ? trimmed.length - 1
+      : trimmed.length;
+  const cells: string[] = [];
+  let current = "";
+  let escaped = false;
+
+  for (let i = start; i < end; i++) {
+    const char = trimmed[i];
+    if (char === "|" && !escaped) {
+      cells.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+    escaped = !escaped && char === "\\";
+  }
+
+  cells.push(current.trim());
+  return cells;
 }
 
 function parseAlignment(cell: string): Alignment | undefined {
@@ -80,6 +137,182 @@ function buildTableSourceLineDecorations(
   return decorations;
 }
 
+function pushText(nodes: TableCellInlineNode[], text: string) {
+  if (!text) return;
+  const last = nodes[nodes.length - 1];
+  if (last?.type === "text") {
+    last.text += text;
+    return;
+  }
+  nodes.push({ type: "text", text });
+}
+
+function pushNodes(nodes: TableCellInlineNode[], next: TableCellInlineNode[]) {
+  for (const node of next) {
+    if (node.type === "text") {
+      pushText(nodes, node.text);
+    } else {
+      nodes.push(node);
+    }
+  }
+}
+
+function decodeMarkdownEntity(entity: string): string {
+  const fromCodePoint = (codePoint: number): string =>
+    Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+      ? String.fromCodePoint(codePoint)
+      : entity;
+
+  if (entity.startsWith("&#x") || entity.startsWith("&#X")) {
+    return fromCodePoint(Number.parseInt(entity.slice(3, -1), 16));
+  }
+  if (entity.startsWith("&#")) {
+    return fromCodePoint(Number.parseInt(entity.slice(2, -1), 10));
+  }
+
+  switch (entity) {
+    case "&amp;":
+      return "&";
+    case "&apos;":
+      return "'";
+    case "&gt;":
+      return ">";
+    case "&lt;":
+      return "<";
+    case "&nbsp;":
+      return "\u00a0";
+    case "&quot;":
+      return '"';
+    default:
+      return entity;
+  }
+}
+
+function renderMarkdownChildren(
+  markdown: string,
+  node: SyntaxNode,
+  hiddenNames = defaultHiddenMarkdownMarks,
+): TableCellInlineNode[] {
+  const nodes: TableCellInlineNode[] = [];
+  let pos = node.from;
+
+  for (let child = node.firstChild; child; child = child.nextSibling) {
+    if (child.from > pos) {
+      pushText(nodes, markdown.slice(pos, child.from));
+    }
+    if (!hiddenNames.has(child.name)) {
+      pushNodes(nodes, renderMarkdownNode(markdown, child));
+    }
+    pos = child.to;
+  }
+
+  if (node.to > pos) {
+    pushText(nodes, markdown.slice(pos, node.to));
+  }
+
+  return nodes;
+}
+
+function markdownElement(
+  tag: Extract<TableCellInlineNode, { type: "element" }>["tag"],
+  children: TableCellInlineNode[],
+  options: { className?: string; href?: string } = {},
+): TableCellInlineNode[] {
+  return [{ type: "element", tag, children, ...options }];
+}
+
+function linkHref(markdown: string, node: SyntaxNode): string | undefined {
+  const url = node.getChild("URL");
+  if (!url) return undefined;
+  return markdown.slice(url.from, url.to).trim();
+}
+
+function renderLink(markdown: string, node: SyntaxNode): TableCellInlineNode[] {
+  const children = renderMarkdownChildren(markdown, node, linkHiddenMarkdownNodes);
+  const href = linkHref(markdown, node);
+  if (children.length === 0 && href) {
+    pushText(children, href);
+  }
+  return markdownElement("span", children, { className: "cm-rendered-link", href });
+}
+
+function renderMarkdownNode(markdown: string, node: SyntaxNode): TableCellInlineNode[] {
+  switch (node.name) {
+    case "Document":
+    case "Paragraph":
+      return renderMarkdownChildren(markdown, node);
+    case "StrongEmphasis":
+      return markdownElement("strong", renderMarkdownChildren(markdown, node));
+    case "Emphasis":
+      return markdownElement("em", renderMarkdownChildren(markdown, node));
+    case "Strikethrough":
+      return markdownElement("s", renderMarkdownChildren(markdown, node));
+    case "InlineCode":
+      return markdownElement("code", renderMarkdownChildren(markdown, node), {
+        className: "cm-inline-code",
+      });
+    case "Link":
+    case "Autolink":
+      return renderLink(markdown, node);
+    case "URL":
+      return markdownElement("span", [{ type: "text", text: markdown.slice(node.from, node.to) }], {
+        className: "cm-rendered-link",
+        href: markdown.slice(node.from, node.to),
+      });
+    case "Image": {
+      const alt = renderMarkdownChildren(markdown, node, linkHiddenMarkdownNodes);
+      return alt.length > 0 ? alt : [{ type: "text", text: markdown.slice(node.from, node.to) }];
+    }
+    case "Escape":
+      return [{ type: "text", text: markdown.slice(node.from + 1, node.to) }];
+    case "Entity":
+      return [{ type: "text", text: decodeMarkdownEntity(markdown.slice(node.from, node.to)) }];
+    case "HardBreak":
+      return [{ type: "break" }];
+    case "Dash": {
+      const dashCount = node.to - node.from;
+      if (dashCount === 2) return [{ type: "text", text: "\u2013" }];
+      if (dashCount === 3) return [{ type: "text", text: "\u2014" }];
+      return [{ type: "text", text: markdown.slice(node.from, node.to) }];
+    }
+    case "Emoji": {
+      const emojiName = markdown.slice(node.from + 1, node.to - 1);
+      return [{ type: "text", text: emoji.get(emojiName) || markdown.slice(node.from, node.to) }];
+    }
+    default:
+      if (node.firstChild) return renderMarkdownChildren(markdown, node);
+      return [{ type: "text", text: markdown.slice(node.from, node.to) }];
+  }
+}
+
+export function parseTableCellInlineMarkdown(markdown: string): TableCellInlineNode[] {
+  return renderMarkdownNode(markdown, tableCellMarkdownParser.parse(markdown).topNode);
+}
+
+function appendInlineMarkdownNodes(parent: HTMLElement, nodes: TableCellInlineNode[]) {
+  for (const node of nodes) {
+    if (node.type === "text") {
+      parent.appendChild(document.createTextNode(node.text));
+      continue;
+    }
+    if (node.type === "break") {
+      parent.appendChild(document.createElement("br"));
+      continue;
+    }
+
+    const child = document.createElement(node.tag);
+    if (node.className) child.className = node.className;
+    if (node.href) child.dataset.href = node.href;
+    appendInlineMarkdownNodes(child, node.children);
+    parent.appendChild(child);
+  }
+}
+
+function setCellMarkdownContent(cell: HTMLElement, markdown: string) {
+  cell.replaceChildren();
+  appendInlineMarkdownNodes(cell, parseTableCellInlineMarkdown(markdown));
+}
+
 // --- Widget ---
 
 class TableWidget extends WidgetType {
@@ -112,7 +345,7 @@ class TableWidget extends WidgetType {
     const headerRow = thead.appendChild(document.createElement("tr"));
     for (let i = 0; i < headers.length; i++) {
       const th = headerRow.appendChild(document.createElement("th"));
-      th.textContent = headers[i];
+      setCellMarkdownContent(th, headers[i]);
       const a = alignments[i];
       if (a) th.style.textAlign = a;
     }
@@ -122,7 +355,7 @@ class TableWidget extends WidgetType {
       const tr = tbody.appendChild(document.createElement("tr"));
       for (let c = 0; c < headers.length; c++) {
         const td = tr.appendChild(document.createElement("td"));
-        td.textContent = rows[r][c] ?? "";
+        setCellMarkdownContent(td, rows[r][c] ?? "");
         const a = alignments[c];
         if (a) td.style.textAlign = a;
       }
@@ -139,13 +372,13 @@ class TableWidget extends WidgetType {
     if (existingThs.length !== headers.length || existingTrs.length !== rows.length) return false;
 
     existingThs.forEach((th, i) => {
-      th.textContent = headers[i];
+      setCellMarkdownContent(th, headers[i]);
       th.style.textAlign = alignments[i] ?? "";
     });
 
     existingTrs.forEach((tr, rowIdx) => {
       tr.querySelectorAll<HTMLElement>("td").forEach((td, colIdx) => {
-        td.textContent = rows[rowIdx]?.[colIdx] ?? "";
+        setCellMarkdownContent(td, rows[rowIdx]?.[colIdx] ?? "");
         td.style.textAlign = alignments[colIdx] ?? "";
       });
     });

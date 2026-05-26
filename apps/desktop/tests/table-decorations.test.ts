@@ -4,7 +4,10 @@ import { markdown } from "@codemirror/lang-markdown";
 import { ensureSyntaxTree } from "@codemirror/language";
 import { GFM } from "@lezer/markdown";
 import { foldExtension } from "../src/lib/prosemark-core/main";
-import { tableDecorations } from "../src/components/editor-area/table-decorations";
+import {
+  parseTableCellInlineMarkdown,
+  tableDecorations,
+} from "../src/components/editor-area/table-decorations";
 
 const before = "before\n";
 const table = ["| Name | Count |", "| --- | ---: |", "| Tea | 2 |"].join("\n");
@@ -46,6 +49,43 @@ function collectFoldDecorations(state: EditorState): FoldDecoration[] {
 }
 
 describe("tableDecorations", () => {
+  test("parses inline markdown for folded table preview cells", () => {
+    expect(
+      parseTableCellInlineMarkdown(
+        "**Bold** _em_ `code` [link](https://example.test) ~~gone~~ &amp; &lt; \\|",
+      ),
+    ).toEqual([
+      { type: "element", tag: "strong", children: [{ type: "text", text: "Bold" }] },
+      { type: "text", text: " " },
+      { type: "element", tag: "em", children: [{ type: "text", text: "em" }] },
+      { type: "text", text: " " },
+      {
+        type: "element",
+        tag: "code",
+        className: "cm-inline-code",
+        children: [{ type: "text", text: "code" }],
+      },
+      { type: "text", text: " " },
+      {
+        type: "element",
+        tag: "span",
+        className: "cm-rendered-link",
+        href: "https://example.test",
+        children: [{ type: "text", text: "link" }],
+      },
+      { type: "text", text: " " },
+      { type: "element", tag: "s", children: [{ type: "text", text: "gone" }] },
+      { type: "text", text: " & < |" },
+    ]);
+  });
+
+  test("keeps inline html in table cells as text", () => {
+    expect(parseTableCellInlineMarkdown("<img src=x onerror=alert(1)> **safe**")).toEqual([
+      { type: "text", text: "<img src=x onerror=alert(1)> " },
+      { type: "element", tag: "strong", children: [{ type: "text", text: "safe" }] },
+    ]);
+  });
+
   test("folds a table to the rendered preview when selection is outside", () => {
     const decorations = collectFoldDecorations(makeState(0));
 

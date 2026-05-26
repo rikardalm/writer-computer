@@ -2,6 +2,7 @@
 
 ## 2026-05-26
 
+- Render inline markdown inside folded table preview cells. Bold, italic, inline code, links, strikethrough, escaped pipes, and common HTML entities now display as rendered inline content in table headers and body cells, while inline HTML stays text-only and the unfolded source-editing path is unchanged.
 - Render unfolded markdown tables as codeblock-styled source lines in the main editor. Tables still fold to the rendered preview when the selection is outside them, but selecting into a table now keeps the markdown editable while giving it the same code surface treatment as fenced code.
 
 ## 2026-05-25
