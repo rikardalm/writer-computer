@@ -41,17 +41,23 @@ function run(cmd: StateCommand, state: EditorState): { state: EditorState; ran: 
   return { state: next, ran };
 }
 
-function widgetNames(state: EditorState): Array<{ from: number; to: number; name: string }> {
+function prefixMarks(
+  state: EditorState,
+): Array<{ from: number; to: number; className: string; style: string }> {
   const decos = state.field(__test.listDecorationsField);
-  const widgets: Array<{ from: number; to: number; name: string }> = [];
+  const marks: Array<{ from: number; to: number; className: string; style: string }> = [];
   decos.all.between(0, state.doc.length, (from, to, deco) => {
-    const widget = (deco.spec as { widget?: unknown }).widget;
-    if (typeof widget !== "object" || widget === null) return;
-    const ctor = (widget as { constructor?: unknown }).constructor;
-    if (typeof ctor !== "function") return;
-    widgets.push({ from, to, name: ctor.name });
+    const spec = deco.spec as { class?: unknown; attributes?: { style?: unknown } };
+    if (typeof spec.class !== "string") return;
+    if (!spec.class.includes("cm-list-prefix")) return;
+    marks.push({
+      from,
+      to,
+      className: spec.class,
+      style: typeof spec.attributes?.style === "string" ? spec.attributes.style : "",
+    });
   });
-  return widgets;
+  return marks;
 }
 
 // ---------------------------------------------------------------------------
@@ -375,28 +381,62 @@ describe("listDecorationsField", () => {
     expect(total).toBe(6);
   });
 
-  test("anchors the bullet marker at the hidden prefix end", () => {
+  test("renders the bullet prefix as a source-backed mark", () => {
     const s = makeState("- ", 2);
-    expect(widgetNames(s).filter((w) => w.name === "BulletMarkerWidget")).toEqual([
-      { from: 2, to: 2, name: "BulletMarkerWidget" },
+    expect(prefixMarks(s)).toEqual([
+      {
+        from: 0,
+        to: 2,
+        className: "cm-list-prefix cm-list-prefix-bullet",
+        style: "width: 3ch; --cm-list-marker-offset: 0ch; --cm-list-marker-width: 3ch",
+      },
     ]);
   });
 
-  test("anchors the checkbox marker at the hidden prefix end", () => {
+  test("renders the checkbox prefix as a source-backed mark", () => {
     const s = makeState("- [ ] ", 6);
-    expect(widgetNames(s).filter((w) => w.name === "CheckboxWidget")).toEqual([
-      { from: 6, to: 6, name: "CheckboxWidget" },
+    expect(prefixMarks(s)).toEqual([
+      {
+        from: 0,
+        to: 6,
+        className: "cm-list-prefix cm-list-prefix-task",
+        style: "width: 3ch; --cm-list-marker-offset: 0ch; --cm-list-marker-width: 3ch",
+      },
     ]);
   });
 
-  test("uses the same marker anchor when body text exists", () => {
+  test("uses the same prefix range when body text exists", () => {
     const bullet = makeState("- body", 2);
     const task = makeState("- [ ] body", 6);
-    expect(widgetNames(bullet).filter((w) => w.name === "BulletMarkerWidget")).toEqual([
-      { from: 2, to: 2, name: "BulletMarkerWidget" },
+    expect(prefixMarks(bullet)).toEqual([
+      {
+        from: 0,
+        to: 2,
+        className: "cm-list-prefix cm-list-prefix-bullet",
+        style: "width: 3ch; --cm-list-marker-offset: 0ch; --cm-list-marker-width: 3ch",
+      },
     ]);
-    expect(widgetNames(task).filter((w) => w.name === "CheckboxWidget")).toEqual([
-      { from: 6, to: 6, name: "CheckboxWidget" },
+    expect(prefixMarks(task)).toEqual([
+      {
+        from: 0,
+        to: 6,
+        className: "cm-list-prefix cm-list-prefix-task",
+        style: "width: 3ch; --cm-list-marker-offset: 0ch; --cm-list-marker-width: 3ch",
+      },
     ]);
+  });
+
+  test("marks checked tasks and carries nested marker geometry", () => {
+    const s = makeState("- a\n  - [x] nested", 16);
+    expect(prefixMarks(s).filter((mark) => mark.className.includes("cm-list-prefix-task"))).toEqual(
+      [
+        {
+          from: 4,
+          to: 12,
+          className: "cm-list-prefix cm-list-prefix-task cm-list-prefix-task-checked",
+          style: "width: 6ch; --cm-list-marker-offset: 3ch; --cm-list-marker-width: 3ch",
+        },
+      ],
+    );
   });
 });

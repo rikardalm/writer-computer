@@ -97,33 +97,37 @@ const baseThemeSpec = {
     cursor: "pointer",
     color: "var(--pm-link-color)",
   },
-  // Width is set inline by `listExtension` from its `LIST_UNIT_CH`
-  // constant (single source of truth), so the rules here only carry
-  // layout-shape and theming concerns.
-  ".cm-list-bullet-marker": {
+  // Width and marker offset are set inline by `listExtension` from its
+  // `LIST_UNIT_CH` constant (single source of truth), so the rules here only
+  // carry layout-shape and theming concerns.
+  ".cm-list-prefix": {
     display: "inline-block",
-    textAlign: "center",
-    color: "var(--pm-muted-color)",
+    position: "relative",
+    boxSizing: "border-box",
+    whiteSpace: "pre",
+    textAlign: "right",
+    color: "transparent",
     textIndent: "0",
+  },
+  ".cm-list-prefix::before": {
+    position: "absolute",
+    insetInlineStart: "var(--cm-list-marker-offset)",
+    top: "0",
+    width: "var(--cm-list-marker-width)",
+    lineHeight: "inherit",
+    color: "var(--pm-muted-color)",
+    textAlign: "center",
+  },
+  ".cm-list-prefix-bullet::before": {
+    content: '"•"',
+  },
+  ".cm-list-prefix-bullet span, .cm-list-prefix-task span": {
+    color: "transparent",
   },
   ".cm-list-ordered-marker": {
     display: "inline-block",
     textAlign: "center",
     textIndent: "0",
-  },
-  // The source prefix chars (leading whitespace + `- ` or `- [ ] `) stay in
-  // the DOM but render as a zero-inline-width clipped box. The 1px font is
-  // load-bearing for WebKit: CodeMirror's drawn selection calls
-  // `posAtCoords` at a wrapped line's left edge, and a `font-size: 0` task
-  // prefix can produce no y-overlapping rects there, so TODO text selections
-  // visually disappear even though the state selection is correct.
-  ".cm-list-prefix-hidden": {
-    display: "inline-block",
-    width: "0",
-    overflow: "hidden",
-    whiteSpace: "pre",
-    fontSize: "1px",
-    opacity: "0",
   },
   ".cm-blockquote-line": {
     position: "relative",

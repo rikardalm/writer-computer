@@ -188,26 +188,19 @@
   display: none;
 }
 
-/* Task checkboxes — single-span point widgets, matching bullet marker geometry.
-   The visual box lives in ::before so there is no native input to steal focus
-   or pointer handling from CodeMirror selection drags. */
-.cm-editor .cm-checkbox {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 1lh;
-  text-align: center;
-  text-indent: 0;
-  vertical-align: top;
+/* Task checkboxes — CSS-drawn on the measurable source prefix mark. There is
+   no native input or widget DOM in the drag-selection hit-test path. */
+.cm-editor .cm-list-prefix-task {
   cursor: pointer;
 }
 
-.cm-editor .cm-checkbox::before {
+.cm-editor .cm-list-prefix-task::before {
   content: "";
-  display: inline-block;
-  flex: 0 0 auto;
+  inset-inline-start: calc(var(--cm-list-marker-offset) + (var(--cm-list-marker-width) - 18px) / 2);
+  top: 50%;
   width: 18px;
   height: 18px;
+  transform: translateY(-50%);
   border: 1.5px solid var(--text-muted);
   border-radius: 5px;
   transition:
@@ -215,7 +208,7 @@
     border-color 0.15s;
 }
 
-.cm-editor .cm-checkbox.cm-checkbox-checked::before {
+.cm-editor .cm-list-prefix-task-checked::before {
   background-color: var(--accent);
   border-color: var(--accent);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 12.5L10.5 15L16 9'/%3E%3C/svg%3E");

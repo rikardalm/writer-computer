@@ -1,5 +1,9 @@
 # Empty List Caret Spec
 
+Superseded for current list geometry by
+[`list-selection-geometry-revamp-spec.md`](list-selection-geometry-revamp-spec.md).
+This spec documents the earlier point-widget anchoring fix.
+
 ## Problem
 
 Empty unordered list items (`- `) and empty task items (`- [ ] `) can appear to

@@ -1,5 +1,9 @@
 # List Selection and TODO Checkbox Regression
 
+Superseded for current list geometry by
+[`list-selection-geometry-revamp-spec.md`](list-selection-geometry-revamp-spec.md).
+This spec documents the earlier replace-widget → point-widget regression fix.
+
 ## Problem
 
 Drag-selecting across bullet list lines could briefly snap the selection head to
