@@ -857,7 +857,7 @@ dependencies = [
 
 [[package]]
 name = "desktop"
-version = "0.0.34"
+version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "ignore",
