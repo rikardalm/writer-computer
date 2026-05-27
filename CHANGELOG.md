@@ -2,6 +2,7 @@
 
 ## 2026-05-26
 
+- Constrain unordered-list and TODO-list prefix interactions to three stable pre-body caret positions: line start, marker start, and body start. Collapsed carets no longer land inside hidden indentation or marker text, ArrowLeft/ArrowRight step across those boundaries, Backspace at body start removes the marker plus one indent level for nested items, Backspace at marker start removes one indent level, and Tab/Shift-Tab now applies to selected list lines without changing the visual list renderer.
 - Stabilize unordered-list and TODO-list drag selection by replacing bullet/task point widgets plus zero-width hidden prefixes with measurable source-backed prefix spans. The real markdown prefix now owns the hit-test geometry while CSS draws the bullet or checkbox on that span, preserving nested alignment, empty-item carets, checkbox toggles, and list keyboard behavior without widget boundary snaps.
 - Fix rendered table-cell links so clicking markdown links and Obsidian wiki links navigates instead of unfolding the table source. Table-cell wiki links now render aliases correctly, including table-escaped separators like `[[Format your notes\|Formatting]]`.
 - Render inline markdown inside folded table preview cells. Bold, italic, inline code, links, strikethrough, escaped pipes, and common HTML entities now display as rendered inline content in table headers and body cells, while inline HTML stays text-only and the unfolded source-editing path is unchanged.

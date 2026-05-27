@@ -120,9 +120,26 @@ const baseThemeSpec = {
   },
   ".cm-list-prefix-bullet::before": {
     content: '"•"',
+    textAlign: "center",
   },
   ".cm-list-prefix-bullet span, .cm-list-prefix-task span": {
     color: "transparent",
+  },
+  ".cm-list-prefix span:not(.cm-list-indent-visual)": {
+    display: "inline-block",
+    width: "var(--cm-list-marker-width)",
+    position: "absolute",
+    right: "0",
+    paddingLeft: "0",
+    textAlign: "left",
+  },
+  ".cm-list-indent-visual": {
+    display: "inline-block",
+    boxSizing: "border-box",
+    whiteSpace: "pre",
+    color: "transparent",
+    textAlign: "left",
+    textIndent: "0",
   },
   ".cm-list-ordered-marker": {
     display: "inline-block",
