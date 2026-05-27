@@ -25,6 +25,8 @@
 
 - Make Mermaid canvas trackpad pinch zoom more responsive while leaving Cmd-wheel, keyboard, and button zoom increments unchanged.
 - Add a reset button to Mermaid canvas controls, shared by inline widgets and the fullscreen overlay. It sits above the zoom-in/out buttons, mirrors the existing `0` keyboard shortcut, and restores the fit-to-viewport pan/zoom state after exploratory navigation.
+- Style the Mermaid inline source editor with a monospace font, a darker recessed background in dark mode, and a narrower pane (33% vs 45%) to give the diagram more room.
+- Fix list-item nested-indent alignment on proportional fonts by deriving the hanging indent from the leading-whitespace character count rather than glyph width, so nesting depth is consistent regardless of font rendering.
 
 ## 2026-05-18
 
