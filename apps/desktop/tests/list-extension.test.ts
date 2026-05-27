@@ -494,7 +494,7 @@ describe("listDecorationsField", () => {
         from: 0,
         to: 2,
         className: "cm-list-prefix cm-list-prefix-bullet",
-        style: "width: 4ch; --cm-list-marker-offset: 0ch; --cm-list-marker-width: 4ch",
+        style: "width: 3ch; --cm-list-marker-offset: 0ch; --cm-list-marker-width: 3ch",
       },
     ]);
   });
@@ -506,7 +506,7 @@ describe("listDecorationsField", () => {
         from: 0,
         to: 6,
         className: "cm-list-prefix cm-list-prefix-task",
-        style: "width: 4ch; --cm-list-marker-offset: 0ch; --cm-list-marker-width: 4ch",
+        style: "width: 3ch; --cm-list-marker-offset: 0ch; --cm-list-marker-width: 3ch",
       },
     ]);
   });
@@ -519,7 +519,7 @@ describe("listDecorationsField", () => {
         from: 0,
         to: 2,
         className: "cm-list-prefix cm-list-prefix-bullet",
-        style: "width: 4ch; --cm-list-marker-offset: 0ch; --cm-list-marker-width: 4ch",
+        style: "width: 3ch; --cm-list-marker-offset: 0ch; --cm-list-marker-width: 3ch",
       },
     ]);
     expect(prefixMarks(task)).toEqual([
@@ -527,7 +527,7 @@ describe("listDecorationsField", () => {
         from: 0,
         to: 6,
         className: "cm-list-prefix cm-list-prefix-task",
-        style: "width: 4ch; --cm-list-marker-offset: 0ch; --cm-list-marker-width: 4ch",
+        style: "width: 3ch; --cm-list-marker-offset: 0ch; --cm-list-marker-width: 3ch",
       },
     ]);
   });
@@ -540,7 +540,7 @@ describe("listDecorationsField", () => {
           from: 4,
           to: 12,
           className: "cm-list-prefix cm-list-prefix-task cm-list-prefix-task-checked",
-          style: "width: 8ch; --cm-list-marker-offset: 4ch; --cm-list-marker-width: 4ch",
+          style: "width: 6ch; --cm-list-marker-offset: 3ch; --cm-list-marker-width: 3ch",
         },
       ],
     );

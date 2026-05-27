@@ -16,7 +16,7 @@ import { eventHandlersWithClass } from "../utils";
 
 // Visual list geometry. Keep indent steps and marker column aligned to the
 // source prefix width; caret boundary tuning happens on the inner source mark.
-const LIST_UNIT_CH = 4;
+const LIST_UNIT_CH = 3;
 const LIST_INDENT_SPACES = 2;
 
 // Cap on how far `findPrevListItemIndent` walks backward looking for a
