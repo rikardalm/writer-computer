@@ -2,6 +2,7 @@
 
 ## 2026-05-28
 
+- Update the app icon across all platforms (macOS `.icns`, Windows `.ico`, Linux/Store PNGs, and Android/iOS launcher assets) and sync the marketing website favicon to match.
 - Show an arrow caret on folder hover in the sidebar, replacing the folder icon, so expand/collapse intent is clearer. Icons and labels now fade in/out with opacity rather than color transitions for a cleaner visual hierarchy.
 
 ## 2026-05-27
