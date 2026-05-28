@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-05-28
+
+- Show an arrow caret on folder hover in the sidebar, replacing the folder icon, so expand/collapse intent is clearer. Icons and labels now fade in/out with opacity rather than color transitions for a cleaner visual hierarchy.
+
 ## 2026-05-27
 
 - Make the root `dev` script delegate to the desktop package's `dev` script, which now starts the Tauri development workflow, and route desktop build/preview scripts through Vite+ built-ins instead of raw Vite binaries.
