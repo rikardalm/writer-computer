@@ -35,9 +35,14 @@
 - Changed the root `tsconfig.json` from NodeNext module resolution to bundler
   resolution so root-level type-aware checks treat Vitest/test imports the same
   way the app package configs do.
+- Ran `vp pm audit --json` and cleared the reported advisories by moving
+  `@welldone-software/why-did-you-render` to `devDependencies`, bumping
+  `dompurify`, and adding targeted pnpm overrides for vulnerable transitives
+  below their patched versions.
 - Validation:
   - `vp check` passed with existing e2e warnings after the JavaScript update.
   - `vp test` passed after the JavaScript update: 27 files, 436 tests.
+  - `vp pm audit --json` reports 0 vulnerabilities after the audit fixes.
   - `cargo test` passed: 103 tests.
   - `cargo clippy` completed with warnings.
   - `cargo fmt --check` passed.

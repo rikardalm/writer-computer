@@ -28,7 +28,7 @@ catalog:
   "@welldone-software/why-did-you-render": ^10.0.1
   beautiful-mermaid: ^1.1.3
   cmdk: ^1.1.1
-  dompurify: ^3.3.3
+  dompurify: ^3.4.7
   motion: ^12.39.0
   node-emoji: ^2.2.0
   react-resizable-panels: ^4.7.4
@@ -42,8 +42,18 @@ catalog:
 
 catalogMode: prefer
 overrides:
+  "@voidzero-dev/vite-plus-test>vite": 8.0.14
+  basic-ftp: 5.3.1
+  fast-xml-builder: 1.1.7
+  fast-xml-parser: 5.7.0
+  ip-address: 10.1.1
+  lodash: 4.18.1
+  picomatch: 4.0.4
+  postcss: 8.5.15
+  serialize-javascript: 7.0.5
   vite: "catalog:"
   vitest: "catalog:"
+  ws: 8.20.1
 peerDependencyRules:
   allowAny:
     - vite

@@ -2,7 +2,7 @@
 
 ## 2026-05-27
 
-- Refresh compatible Rust and JavaScript dependency lockfiles. The JavaScript update moves the local Vite+ toolchain to the latest compatible lockfile version and aligns the root TypeScript config with the app-level bundler resolution used by Vite/Vitest checks.
+- Refresh compatible Rust and JavaScript dependency lockfiles. The JavaScript update moves the local Vite+ toolchain to the latest compatible lockfile version, aligns the root TypeScript config with the app-level bundler resolution used by Vite/Vitest checks, and clears the current package audit with direct dependency bumps plus targeted transitive overrides.
 
 ## 2026-05-26
 
