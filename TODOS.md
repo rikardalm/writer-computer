@@ -6,6 +6,8 @@
 
 ## Done
 
+- Desktop dev script — make the root `dev` script delegate to the desktop package's Tauri dev workflow and keep desktop build/preview scripts on Vite+ commands.
+- Dependency lock refresh: [`SPECs/Agent/worksheet-dependency-lock-refresh.md`](SPECs/Agent/worksheet-dependency-lock-refresh.md) — refresh compatible Rust and JavaScript dependency lockfiles, including the `vite-plus` toolchain update, root TypeScript config alignment, and package-audit fixes.
 - Default paragraph line height — make new and reset editor line-height settings use 1.8 instead of 1.6.
 - List prefix interaction zones: [`SPECs/list-prefix-interaction-zones-spec.md`](SPECs/list-prefix-interaction-zones-spec.md) — constrain pre-body caret positions to line start, marker start, and body start, then make Backspace and multi-line Tab/Shift-Tab operate from those source zones.
 - List selection geometry revamp: [`SPECs/list-selection-geometry-revamp-spec.md`](SPECs/list-selection-geometry-revamp-spec.md) — replace bullet/task point widgets plus zero-width hidden prefixes with measurable source-backed prefix marks so horizontal drag selection has stable hit-test geometry.
