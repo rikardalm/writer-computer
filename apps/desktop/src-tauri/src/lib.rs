@@ -39,7 +39,7 @@ const MAIN_WINDOW_LABEL: &str = "main";
 /// routed via `emit_to` so a drop onto window A never triggers window B.
 fn queue_open_event(app: &tauri::AppHandle, label: &str, payload: PendingOpenPayload) {
     if let Some(state) = app.state::<AppState>().get(label) {
-        state.set_pending_open(payload.clone());
+        state.push_pending_open(payload.clone());
     }
     let _ = app.emit_to(label, "open:from-drop", payload);
 }
@@ -481,35 +481,44 @@ pub fn run() {
                     if let Ok(path) = url.to_file_path() {
                         if let Some(payload) = resolve_path(&path) {
                             let app_state = _app.state::<AppState>();
-                            let existing = app_state
-                                .find_by_workspace(&PathBuf::from(&payload.workspace));
+                            let existing =
+                                app_state.find_by_workspace(&PathBuf::from(&payload.workspace));
                             match existing {
                                 Some(label) => {
                                     queue_open_event(_app, &label, payload);
                                 }
                                 None => {
-                                    // If the main webview window doesn't exist
-                                    // yet, this Opened event beat window
-                                    // creation — a cold start. Seed the main
-                                    // window's startup_open so it hydrates onto
-                                    // this workspace when it loads, instead of
-                                    // spawning a second window beside the empty
-                                    // main. `open -a` delivers the path here,
-                                    // not through argv.
-                                    if _app.get_webview_window(MAIN_WINDOW_LABEL).is_none() {
-                                        app_state
-                                            .get_or_create(MAIN_WINDOW_LABEL)
-                                            .set_startup_open(payload);
-                                    } else {
-                                        // Warm start: the app is already running
-                                        // with its main window loaded. Open the
-                                        // workspace in a new window so the user's
-                                        // current editor state is preserved.
-                                        let _ = open_new_workspace_window(
-                                            _app,
-                                            payload.workspace.clone(),
-                                            payload.file.clone(),
-                                        );
+                                    let main_state = app_state.get_or_create(MAIN_WINDOW_LABEL);
+                                    match main_state.try_set_startup_open(payload) {
+                                        Ok(()) => {}
+                                        Err(payload) => {
+                                            let main_visible = _app
+                                                .get_webview_window(MAIN_WINDOW_LABEL)
+                                                .is_some_and(|window| {
+                                                    window.is_visible().unwrap_or(false)
+                                                });
+
+                                            if main_visible {
+                                                // Warm start: the app is already
+                                                // running with its main window
+                                                // visible. Open the workspace in a
+                                                // new window so the user's current
+                                                // editor state is preserved.
+                                                let _ = open_new_workspace_window(
+                                                    _app,
+                                                    payload.workspace.clone(),
+                                                    payload.file.clone(),
+                                                );
+                                            } else {
+                                                // Startup state has already been
+                                                // read, but the hidden main window
+                                                // is still hydrating. Queue the
+                                                // open for the startup drainer
+                                                // instead of spawning a duplicate
+                                                // empty main-adjacent window.
+                                                queue_open_event(_app, MAIN_WINDOW_LABEL, payload);
+                                            }
+                                        }
                                     }
                                 }
                             }

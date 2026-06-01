@@ -5,7 +5,7 @@ use notify::RecommendedWatcher;
 use parking_lot::{Mutex, RwLock};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -45,14 +45,18 @@ pub struct WorkspaceState {
     /// window's workspace. Two windows with different workspaces therefore
     /// carry different merged settings without clobbering each other.
     pub settings: RwLock<Option<Settings>>,
-    /// Open target set during window creation (from CLI args or
-    /// `open_new_workspace_window`). Read once by `get_startup_state`.
-    /// Follows the same lifecycle as `settings` — set before the webview
-    /// loads, consumed during startup hydration. Runtime events never
-    /// touch this field.
+    /// Open target set before this window's `get_startup_state` has read the
+    /// startup slot. Usually seeded during window creation (CLI args or
+    /// `open_new_workspace_window`); macOS `RunEvent::Opened` can also seed
+    /// the hidden main window before React asks for startup state.
     pub startup_open: Mutex<Option<PendingOpenPayload>>,
-    /// Runtime-only queue for drag-drop / dock-drop events on a live,
-    /// already-hydrated window. Never read by `get_startup_state`.
+    /// Flips to `true` once `get_startup_state` has attempted to read
+    /// `startup_open`. After this point, open events must use `pending_open`
+    /// because the startup slot will not be read again.
+    pub startup_open_taken: AtomicBool,
+    /// Runtime-only queue for drag-drop / dock-drop events after the startup
+    /// slot has been read. Drained by the frontend once startup hydration
+    /// completes. Never read by `get_startup_state`.
     pub pending_open: Mutex<VecDeque<PendingOpenPayload>>,
 }
 
@@ -77,6 +81,7 @@ impl Default for WorkspaceState {
             cancel_index: RwLock::new(Arc::new(AtomicBool::new(false))),
             settings: RwLock::new(None),
             startup_open: Mutex::new(None),
+            startup_open_taken: AtomicBool::new(false),
             pending_open: Mutex::new(VecDeque::new()),
         }
     }
@@ -84,16 +89,37 @@ impl Default for WorkspaceState {
 
 impl WorkspaceState {
     pub fn set_startup_open(&self, payload: PendingOpenPayload) {
+        debug_assert!(
+            !self.startup_open_taken.load(Ordering::Acquire),
+            "startup_open was set after get_startup_state consumed it"
+        );
         *self.startup_open.lock() = Some(payload);
     }
 
-    pub fn take_startup_open(&self) -> Option<PendingOpenPayload> {
-        self.startup_open.lock().take()
+    pub fn try_set_startup_open(
+        &self,
+        payload: PendingOpenPayload,
+    ) -> Result<(), PendingOpenPayload> {
+        let mut startup_open = self.startup_open.lock();
+        if self.startup_open_taken.load(Ordering::Acquire) || startup_open.is_some() {
+            return Err(payload);
+        }
+        *startup_open = Some(payload);
+        Ok(())
     }
 
-    pub fn set_pending_open(&self, payload: PendingOpenPayload) {
+    pub fn take_startup_open(&self) -> Option<PendingOpenPayload> {
+        let mut startup_open = self.startup_open.lock();
+        let payload = startup_open.take();
+        self.startup_open_taken.store(true, Ordering::Release);
+        payload
+    }
+
+    pub fn push_pending_open(&self, payload: PendingOpenPayload) {
         let mut pending = self.pending_open.lock();
-        pending.clear();
+        if pending.back() == Some(&payload) {
+            return;
+        }
         pending.push_back(payload);
     }
 
@@ -247,7 +273,7 @@ mod tests {
     fn find_by_workspace_matches_pending_open() {
         let app_state = AppState::new();
         let window_state = app_state.get_or_create("pending-window");
-        window_state.set_pending_open(PendingOpenPayload {
+        window_state.push_pending_open(PendingOpenPayload {
             workspace: "/tmp/workspace".to_string(),
             file: None,
         });
@@ -256,5 +282,77 @@ mod tests {
             app_state.find_by_workspace(Path::new("/tmp/workspace")),
             Some("pending-window".to_string())
         );
+    }
+
+    #[test]
+    fn pending_open_preserves_distinct_payloads_in_order() {
+        let window_state = WorkspaceState::default();
+        let first = PendingOpenPayload {
+            workspace: "/tmp/workspace-a".to_string(),
+            file: Some("/tmp/workspace-a/a.md".to_string()),
+        };
+        let second = PendingOpenPayload {
+            workspace: "/tmp/workspace-b".to_string(),
+            file: Some("/tmp/workspace-b/b.md".to_string()),
+        };
+
+        window_state.push_pending_open(first.clone());
+        window_state.push_pending_open(second.clone());
+
+        assert_eq!(window_state.pop_pending_open(), Some(first));
+        assert_eq!(window_state.pop_pending_open(), Some(second));
+        assert_eq!(window_state.pop_pending_open(), None);
+    }
+
+    #[test]
+    fn pending_open_dedupes_repeated_tail_payload() {
+        let window_state = WorkspaceState::default();
+        let payload = PendingOpenPayload {
+            workspace: "/tmp/workspace".to_string(),
+            file: Some("/tmp/workspace/a.md".to_string()),
+        };
+
+        window_state.push_pending_open(payload.clone());
+        window_state.push_pending_open(payload.clone());
+
+        assert_eq!(window_state.pop_pending_open(), Some(payload));
+        assert_eq!(window_state.pop_pending_open(), None);
+    }
+
+    #[test]
+    fn startup_open_cannot_be_seeded_after_take() {
+        let window_state = WorkspaceState::default();
+        assert_eq!(window_state.take_startup_open(), None);
+
+        let payload = PendingOpenPayload {
+            workspace: "/tmp/workspace".to_string(),
+            file: None,
+        };
+
+        assert_eq!(
+            window_state.try_set_startup_open(payload.clone()),
+            Err(payload)
+        );
+    }
+
+    #[test]
+    fn startup_open_try_seed_preserves_existing_payload() {
+        let window_state = WorkspaceState::default();
+        let first = PendingOpenPayload {
+            workspace: "/tmp/workspace-a".to_string(),
+            file: None,
+        };
+        let second = PendingOpenPayload {
+            workspace: "/tmp/workspace-b".to_string(),
+            file: None,
+        };
+
+        window_state.set_startup_open(first.clone());
+
+        assert_eq!(
+            window_state.try_set_startup_open(second.clone()),
+            Err(second)
+        );
+        assert_eq!(window_state.take_startup_open(), Some(first));
     }
 }

@@ -4,13 +4,14 @@ How files and folders reach the editor from every entry point.
 
 There are **two distinct open mechanisms**, deliberately kept separate:
 
-- **`startup_open`** — a single `Option<PendingOpenPayload>` set in Rust during
-  window creation, *before* the webview loads. Read exactly once by
-  `get_startup_state` during startup hydration. Same lifecycle as settings: set
-  before the webview, consumed during the first render. No runtime event touches
-  it. This is the source of truth for what a freshly-created window opens.
+- **`startup_open`** — a single `Option<PendingOpenPayload>` seeded in Rust
+  before `get_startup_state` reads it. For new windows this happens during
+  window creation; for macOS cold-start `RunEvent::Opened`, it can happen while
+  the main webview exists but is still hidden and unhydrated. Read exactly once
+  during startup hydration. Same lifecycle as settings: set before first render,
+  consumed during the first render.
 - **`pending_open`** — a per-window queue for runtime drag-and-drop / dock drops
-  onto an *already-running* window. Drained by the frontend via the
+  onto an _already-running_ window. Drained by the frontend via the
   `open:from-drop` event + `take_pending_open` IPC.
 
 Both feed the single `get_startup_state` IPC (for startup) or the
@@ -36,9 +37,11 @@ dispatches on argv\[0\]: basename `writer` → CLI launcher, `Writer` → Tauri 
 
 On macOS the open target is **not** delivered through argv — `open -a Writer
 /path` (which the CLI launcher, Finder, and dock all use) delivers it via the
-`RunEvent::Opened` system event. That event can fire *before* `setup()` builds
-the main window, so the handler seeds `startup_open` on the main window's state.
-The webview then reads it during hydration — a single window, no duplicate.
+`RunEvent::Opened` system event. That event can fire before `setup()` builds the
+main window or after Tauri has built the still-hidden webview but before React
+calls `get_startup_state`. In either case the handler seeds `startup_open` as
+long as that startup slot has not been read yet. The webview then reads it
+during hydration — a single window, no duplicate.
 
 ```mermaid
 sequenceDiagram
@@ -52,8 +55,8 @@ sequenceDiagram
     OS->>Run: RunEvent::Opened { urls: [file:///path] }
     Run->>Run: resolve_path(url)
     Run->>State: find_by_workspace(path) → None
-    Note over Run: Main webview not built yet →<br/>cold start. Seed startup_open.
-    Run->>State: get_or_create("main").set_startup_open(payload)
+    Note over Run: Main startup slot unread →<br/>cold start. Seed startup_open.
+    Run->>State: get_or_create("main").try_set_startup_open(payload)
 
     Note over WV: setup() builds the window,<br/>get_or_create("main") returns the<br/>same state with startup_open set
     WV->>React: WebView loads, React mounts
@@ -93,7 +96,7 @@ sequenceDiagram
         Rust->>Rust: resolve_path(path)
         Note over Rust: Lenient: skip non-dir / non-.md
     end
-    Rust->>State: set_pending_open(payload)  (runtime queue)
+    Rust->>State: push_pending_open(payload)  (runtime queue)
     Rust->>WV: emit_to(label, "open:from-drop", payload)
 
     React->>React: listen("open:from-drop") fires
@@ -114,7 +117,8 @@ sequenceDiagram
 
 Dragging onto the dock icon (or double-clicking a `.md` in Finder via the
 `fileAssociations` registration) fires `RunEvent::Opened`. The handler routes by
-whether the main webview already exists and whether a window hosts the workspace.
+whether a window already hosts the workspace, whether the main startup slot is
+still unread, and whether the main window is already visible.
 
 ```mermaid
 sequenceDiagram
@@ -130,19 +134,28 @@ sequenceDiagram
 
     alt A window already hosts this workspace
         State-->>Run: Some(label)
-        Run->>State: set_pending_open(payload)  (runtime queue)
+        Run->>State: push_pending_open(payload)  (runtime queue)
         Run->>WV: emit_to(label, "open:from-drop")
         Note over WV: Drains queue, focuses,<br/>opens file if specified
-    else No window hosts it
+    else No window hosts it and main startup slot unread
         State-->>Run: None
-        Note over Run: Main webview exists (warm) →<br/>preserve current editor state
+        Run->>State: try_set_startup_open(payload) → Ok
+        Note over WV: Hidden main hydrates onto<br/>requested workspace
+    else No window hosts it and main hidden
+        State-->>Run: None
+        Run->>State: push_pending_open(payload)
+        Run->>WV: emit_to("main", "open:from-drop")
+        Note over WV: Startup drainer runs after<br/>hydration completes
+    else No window hosts it and main visible
+        State-->>Run: None
+        Note over Run: Warm start → preserve<br/>current editor state
         Run->>NewWV: open_new_workspace_window(workspace, file)
         Note over NewWV: New window seeded via<br/>startup_open, hydrates on load
     end
 ```
 
-The cold-start branch of this same handler (main webview not built yet) is
-covered in flow 1 — it seeds the main window instead of spawning a new one.
+The cold-start branch of this same handler is covered in flow 1 — it seeds the
+main window while `startup_open` is still readable instead of spawning a new one.
 
 ## 4. Second Launch (Single-Instance Plugin)
 
@@ -238,9 +251,9 @@ sequenceDiagram
 
 ## Key Design Decisions
 
-- **Single source of truth per concern**: `startup_open` owns the *initial* open
-  (set before the webview, read once — like settings); `pending_open` owns
-  *runtime* drops (queue + event). They never overlap, which removes the
+- **Single source of truth per concern**: `startup_open` owns the _initial_ open
+  (seeded before `get_startup_state` reads it); `pending_open` owns _runtime_
+  drops (queue + event). Their consumers do not overlap, which removes the
   cold-start double-open and the race where a runtime event clobbered startup.
 
 - **Explicit open ≠ session restore**: when `startup_open` is set, the restore
@@ -264,4 +277,3 @@ sequenceDiagram
 - **Lenient vs. strict resolution**: drag-drop and `RunEvent::Opened` use
   `resolve_path` (returns `None` for unsupported files). The CLI uses
   `validate_and_resolve` (typed error for stderr).
-```
