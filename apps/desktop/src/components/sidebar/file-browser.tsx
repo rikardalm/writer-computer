@@ -223,14 +223,14 @@ export function FileBrowser() {
                     fileLabelMode={fileLabelMode}
                   />
                 ))}
+                {pinnedEntries.hasMore && (
+                  <ShowMoreButton
+                    onClick={() =>
+                      setPinnedVisibleCount((count) => count + SIDEBAR_SECTION_PAGE_SIZE)
+                    }
+                  />
+                )}
               </div>
-              {pinnedEntries.hasMore && (
-                <ShowMoreButton
-                  onClick={() =>
-                    setPinnedVisibleCount((count) => count + SIDEBAR_SECTION_PAGE_SIZE)
-                  }
-                />
-              )}
             </SidebarSection>
           )}
 
@@ -251,14 +251,14 @@ export function FileBrowser() {
                     fileLabelMode={fileLabelMode}
                   />
                 ))}
+                {recentFiles.hasMore && (
+                  <ShowMoreButton
+                    onClick={() =>
+                      setRecentVisibleCount((count) => count + SIDEBAR_SECTION_PAGE_SIZE)
+                    }
+                  />
+                )}
               </div>
-              {recentFiles.hasMore && (
-                <ShowMoreButton
-                  onClick={() =>
-                    setRecentVisibleCount((count) => count + SIDEBAR_SECTION_PAGE_SIZE)
-                  }
-                />
-              )}
             </SidebarSection>
           )}
 
