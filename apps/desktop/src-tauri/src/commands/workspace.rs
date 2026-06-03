@@ -86,6 +86,7 @@ fn prepare_workspace_state(
     // Reset per-workspace state.
     *state.workspace_root.write() = Some(root.clone());
     *state.file_index.write() = Vec::new();
+    state.invalidate_recent_files_cache();
     *state.dirs_with_markdown.write() = Default::default();
     state.index_ready.store(false, Ordering::Relaxed);
 
@@ -195,6 +196,7 @@ fn run_workspace_bootstrap(
         return;
     }
     *state.file_index.write() = indexed;
+    state.invalidate_recent_files_cache();
     *state.dirs_with_markdown.write() = dirs;
     state.index_ready.store(true, Ordering::Relaxed);
 

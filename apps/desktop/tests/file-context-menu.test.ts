@@ -23,6 +23,7 @@ function makeHandlers(): FileContextMenuHandlers & { calls: string[] } {
     calls,
     onOpen: () => calls.push("open"),
     onOpenInNewTab: () => calls.push("open-in-new-tab"),
+    onTogglePin: () => calls.push("toggle-pin"),
     onDuplicate: () => calls.push("duplicate"),
     onCopyRelativePath: () => calls.push("copy-relative-path"),
     onCopyAbsolutePath: () => calls.push("copy-absolute-path"),
@@ -105,6 +106,7 @@ describe("buildFileMenuItemsSpec", () => {
     expect(summary).toEqual([
       "open:Open",
       "open-in-new-tab:Open in new tab",
+      "toggle-pin:Pin",
       "---",
       "duplicate:Duplicate",
       "---",
@@ -147,6 +149,7 @@ describe("buildFileMenuItemsSpec", () => {
     expect(handlers.calls).toEqual([
       "open",
       "open-in-new-tab",
+      "toggle-pin",
       "duplicate",
       "copy-relative-path",
       "copy-absolute-path",
@@ -167,6 +170,18 @@ describe("buildFileMenuItemsSpec", () => {
       (e): e is Extract<typeof e, { kind: "item" }> => e.kind === "item" && e.id === "reveal",
     );
     expect(reveal?.text).toBe("Reveal in Finder");
+  });
+
+  test("uses unpin label for pinned files", () => {
+    const handlers = makeHandlers();
+    handlers.isPinned = true;
+
+    const spec = buildFileMenuItemsSpec(handlers, "macos");
+    const pinItem = spec.find(
+      (e): e is Extract<typeof e, { kind: "item" }> => e.kind === "item" && e.id === "toggle-pin",
+    );
+
+    expect(pinItem?.text).toBe("Unpin");
   });
 
   test("Platform type accepts the three known platforms", () => {

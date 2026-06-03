@@ -57,6 +57,8 @@ describe("workspace-store", () => {
       root: null,
       directoryCache: new Map(),
       expandedDirs: new Set(),
+      pinnedFiles: [],
+      sidebarMetadataVersion: 0,
       recentWorkspaces: [],
     });
   });
@@ -111,6 +113,39 @@ describe("workspace-store", () => {
 
     useWorkspaceStore.getState().invalidatePath("/test");
     expect(useWorkspaceStore.getState().directoryCache.has("/test")).toBe(false);
+  });
+
+  test("togglePinnedFile adds and removes workspace file paths", () => {
+    useWorkspaceStore.setState({ root: "/test", pinnedFiles: [] });
+
+    useWorkspaceStore.getState().togglePinnedFile("/test/a.md");
+    expect(useWorkspaceStore.getState().pinnedFiles).toEqual(["/test/a.md"]);
+
+    useWorkspaceStore.getState().togglePinnedFile("/test/a.md");
+    expect(useWorkspaceStore.getState().pinnedFiles).toEqual([]);
+  });
+
+  test("togglePinnedFile ignores paths outside the workspace", () => {
+    useWorkspaceStore.setState({ root: "/test", pinnedFiles: [] });
+
+    useWorkspaceStore.getState().togglePinnedFile("/elsewhere/a.md");
+
+    expect(useWorkspaceStore.getState().pinnedFiles).toEqual([]);
+  });
+
+  test("rewritePinnedPath updates pinned files below renamed folders", () => {
+    useWorkspaceStore.setState({
+      root: "/test",
+      pinnedFiles: ["/test/old/a.md", "/test/old/nested/b.md", "/test/keep.md"],
+    });
+
+    useWorkspaceStore.getState().rewritePinnedPath("/test/old", "/test/new");
+
+    expect(useWorkspaceStore.getState().pinnedFiles).toEqual([
+      "/test/new/a.md",
+      "/test/new/nested/b.md",
+      "/test/keep.md",
+    ]);
   });
 });
 

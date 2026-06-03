@@ -18,6 +18,7 @@ export function useFileWatcher() {
     const unlistenFile = listen<FileChangePayload>("fs:file-changed", (event) => {
       const { path, kind } = event.payload;
       if (WATCHER_DEBUG) console.debug("[watcher] fs:file-changed", kind, path);
+      useWorkspaceStore.getState().bumpSidebarMetadataVersion();
       const openFiles = editorApi.getOpenFiles();
       const file = openFiles.get(path);
 
@@ -36,8 +37,15 @@ export function useFileWatcher() {
 
     const unlistenIndexComplete = listen<number>("index:complete", () => {
       if (useWorkspaceStore.getState().root) {
-        useWorkspaceStore.setState({ isIndexing: false });
+        useWorkspaceStore.setState((state) => ({
+          isIndexing: false,
+          sidebarMetadataVersion: state.sidebarMetadataVersion + 1,
+        }));
       }
+    });
+
+    const unlistenSidebarMetadata = listen("sidebar:metadata-changed", () => {
+      useWorkspaceStore.getState().bumpSidebarMetadataVersion();
     });
 
     const unlistenSettings = listen("settings:changed", () => {
@@ -47,7 +55,9 @@ export function useFileWatcher() {
     const unlistenDir = listen<FileChangePayload>("fs:directory-changed", (event) => {
       const { path } = event.payload;
       if (WATCHER_DEBUG) console.debug("[watcher] fs:directory-changed", path);
-      const { root, expandedDirs, invalidatePath, refreshDirectory } = useWorkspaceStore.getState();
+      const { root, expandedDirs, invalidatePath, refreshDirectory, bumpSidebarMetadataVersion } =
+        useWorkspaceStore.getState();
+      bumpSidebarMetadataVersion();
 
       // For visible directories (expanded or root), refresh in-place so the
       // old entries stay visible until new data arrives.  Calling
@@ -72,6 +82,7 @@ export function useFileWatcher() {
     return () => {
       void unlistenFile.then((fn) => fn());
       void unlistenIndexComplete.then((fn) => fn());
+      void unlistenSidebarMetadata.then((fn) => fn());
       void unlistenSettings.then((fn) => fn());
       void unlistenDir.then((fn) => fn());
     };

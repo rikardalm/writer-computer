@@ -127,7 +127,13 @@ pub fn record_write(state: &WorkspaceState, path: &Path) {
 /// markdown" check returns true for newly-populated subtrees.
 fn add_to_index(state: &WorkspaceState, path: &Path, root: &Path) {
     let mut index = state.file_index.write();
-    if index.iter().any(|f| f.path == path) {
+    let modified_at = crate::commands::fs::modified_time(path);
+    if let Some(file) = index.iter_mut().find(|f| f.path == path) {
+        if file.modified_at != modified_at {
+            file.modified_at = modified_at;
+            drop(index);
+            state.invalidate_recent_files_cache();
+        }
         return;
     }
     let rel = path
@@ -143,15 +149,25 @@ fn add_to_index(state: &WorkspaceState, path: &Path, root: &Path) {
         path: path.to_path_buf(),
         relative_path: rel,
         name,
+        modified_at,
     });
     drop(index);
+    state.invalidate_recent_files_cache();
 
     state::register_ancestors(&mut state.dirs_with_markdown.write(), path, root);
 }
 
 /// Drop a single path from the file index and rebuild `dirs_with_markdown`.
 fn remove_from_index(state: &WorkspaceState, path: &Path, root: &Path) {
-    state.file_index.write().retain(|f| f.path != path);
+    let removed = {
+        let mut index = state.file_index.write();
+        let before = index.len();
+        index.retain(|f| f.path != path);
+        before != index.len()
+    };
+    if removed {
+        state.invalidate_recent_files_cache();
+    }
     let index = state.file_index.read();
     *state.dirs_with_markdown.write() = state::rebuild_dirs_from_index(&index, root);
 }
@@ -165,10 +181,15 @@ fn remove_subtree_from_index(state: &WorkspaceState, dir: &Path, root: &Path) {
         s.push("");
         s
     };
-    state
-        .file_index
-        .write()
-        .retain(|f| !f.path.starts_with(&dir_with_sep) && f.path != dir);
+    let removed = {
+        let mut index = state.file_index.write();
+        let before = index.len();
+        index.retain(|f| !f.path.starts_with(&dir_with_sep) && f.path != dir);
+        before != index.len()
+    };
+    if removed {
+        state.invalidate_recent_files_cache();
+    }
     let index = state.file_index.read();
     *state.dirs_with_markdown.write() = state::rebuild_dirs_from_index(&index, root);
 }
@@ -209,6 +230,7 @@ fn add_subtree_to_index(state: &WorkspaceState, dir: &Path, root: &Path) {
                 path: file.path,
                 relative_path: rel,
                 name: file.name,
+                modified_at: file.modified_at,
             });
             added.push(path);
         }
@@ -217,6 +239,7 @@ fn add_subtree_to_index(state: &WorkspaceState, dir: &Path, root: &Path) {
     if added.is_empty() {
         return;
     }
+    state.invalidate_recent_files_cache();
     let mut dirs = state.dirs_with_markdown.write();
     for p in added {
         state::register_ancestors(&mut dirs, &p, root);
@@ -349,6 +372,16 @@ pub fn start_watcher(
 
                     if is_self_write(&state, path) {
                         continue;
+                    }
+
+                    if !is_dir
+                        && path.extension().and_then(|e| e.to_str()) == Some("md")
+                        && path.exists()
+                    {
+                        state.update_index_modified_at(
+                            path,
+                            crate::commands::fs::modified_time(path),
+                        );
                     }
 
                     let kind_str = match event_kind_str(&event.kind) {

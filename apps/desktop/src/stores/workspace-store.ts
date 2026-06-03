@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { DirEntry } from "@/types/fs";
 import type { RestoreWorkspaceResponse } from "@/lib/tauri";
 import * as tauri from "@/lib/tauri";
+import { getPreference, setPreference } from "@/lib/preferences";
 import { saveSession, loadSession } from "@/lib/session";
 import { getEditorSessionSnapshot, useEditorStore } from "@/stores/editor-store";
 
@@ -11,6 +12,8 @@ interface WorkspaceState {
   isStartupResolved: boolean;
   directoryCache: Map<string, DirEntry[]>;
   expandedDirs: Set<string>;
+  pinnedFiles: string[];
+  sidebarMetadataVersion: number;
   recentWorkspaces: string[];
 
   openWorkspace: (path: string) => Promise<void>;
@@ -23,7 +26,49 @@ interface WorkspaceState {
   toggleDirectory: (path: string) => Promise<void>;
   invalidatePath: (path: string) => void;
   rewriteExpandedDir: (oldPath: string, newPath: string) => void;
+  hydratePinnedFiles: (root: string) => Promise<void>;
+  togglePinnedFile: (path: string) => void;
+  removePinnedFile: (path: string) => void;
+  removePinnedFilesWithPrefix: (prefix: string) => void;
+  rewritePinnedPath: (oldPath: string, newPath: string) => void;
+  bumpSidebarMetadataVersion: () => void;
   removeRecentWorkspace: (path: string) => Promise<void>;
+}
+
+function pinnedFilesPreferenceKey(root: string) {
+  return `workspace:${root}:sidebar-pinned-files`;
+}
+
+function normalizePinnedFiles(root: string, paths: unknown): string[] {
+  if (!Array.isArray(paths)) return [];
+  const rootPrefix = `${root}/`;
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const path of paths) {
+    if (typeof path !== "string") continue;
+    if (!path.startsWith(rootPrefix)) continue;
+    if (seen.has(path)) continue;
+    seen.add(path);
+    result.push(path);
+  }
+  return result;
+}
+
+async function loadPinnedFiles(root: string) {
+  const paths = await getPreference<unknown>(pinnedFilesPreferenceKey(root), []);
+  return normalizePinnedFiles(root, paths);
+}
+
+function persistPinnedFiles(root: string, paths: string[]) {
+  void setPreference(pinnedFilesPreferenceKey(root), paths);
+}
+
+function withoutPath(paths: string[], path: string) {
+  return paths.filter((candidate) => candidate !== path);
+}
+
+function dedupe(paths: string[]) {
+  return [...new Set(paths)];
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -32,6 +77,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   isStartupResolved: false,
   directoryCache: new Map(),
   expandedDirs: new Set(),
+  pinnedFiles: [],
+  sidebarMetadataVersion: 0,
   recentWorkspaces: [],
 
   openWorkspace: async (path: string) => {
@@ -68,8 +115,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       isIndexing: true,
       directoryCache: new Map([[info.root, entries]]),
       expandedDirs: new Set(),
+      pinnedFiles: [],
+      sidebarMetadataVersion: 0,
       recentWorkspaces: recents,
     });
+    void get().hydratePinnedFiles(info.root);
 
     const session = await loadSession(info.root);
     if (session && session.tabs.length > 0) {
@@ -91,7 +141,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       activeTabId: null,
       activeFilePath: null,
     });
-    set({ root: null, directoryCache: new Map(), expandedDirs: new Set(), isIndexing: false });
+    set({
+      root: null,
+      directoryCache: new Map(),
+      expandedDirs: new Set(),
+      pinnedFiles: [],
+      sidebarMetadataVersion: 0,
+      isIndexing: false,
+    });
   },
 
   restoreFromBundle: async (bundle) => {
@@ -108,8 +165,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       isIndexing: true,
       directoryCache: new Map([[bundle.workspace.root, bundle.entries]]),
       expandedDirs: new Set(),
+      pinnedFiles: [],
+      sidebarMetadataVersion: 0,
       recentWorkspaces: bundle.recent_workspaces,
     });
+    void get().hydratePinnedFiles(bundle.workspace.root);
 
     if (bundle.session && bundle.session.tabs && bundle.session.tabs.length > 0) {
       // Fire-and-forget: `restoreSession` populates the active tab
@@ -213,6 +273,88 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
       return { expandedDirs: next, directoryCache: cache };
     });
+  },
+
+  hydratePinnedFiles: async (root: string) => {
+    const pinnedFiles = await loadPinnedFiles(root);
+    if (get().root !== root) return;
+    set({ pinnedFiles });
+  },
+
+  togglePinnedFile: (path: string) => {
+    const root = get().root;
+    if (!root || !path.startsWith(`${root}/`)) return;
+
+    let next: string[] = [];
+    set((state) => {
+      next = state.pinnedFiles.includes(path)
+        ? withoutPath(state.pinnedFiles, path)
+        : [path, ...state.pinnedFiles];
+      return { pinnedFiles: next };
+    });
+    persistPinnedFiles(root, next);
+  },
+
+  removePinnedFile: (path: string) => {
+    const root = get().root;
+    if (!root) return;
+
+    let next: string[] | null = null;
+    set((state) => {
+      if (!state.pinnedFiles.includes(path)) return state;
+      const updated = withoutPath(state.pinnedFiles, path);
+      next = updated;
+      return { pinnedFiles: updated };
+    });
+    if (next) persistPinnedFiles(root, next);
+  },
+
+  removePinnedFilesWithPrefix: (prefix: string) => {
+    const root = get().root;
+    if (!root) return;
+
+    const prefixWithSlash = `${prefix}/`;
+    let next: string[] | null = null;
+    set((state) => {
+      const filtered = state.pinnedFiles.filter(
+        (path) => path !== prefix && !path.startsWith(prefixWithSlash),
+      );
+      if (filtered.length === state.pinnedFiles.length) return state;
+      next = filtered;
+      return { pinnedFiles: filtered };
+    });
+    if (next) persistPinnedFiles(root, next);
+  },
+
+  rewritePinnedPath: (oldPath: string, newPath: string) => {
+    const root = get().root;
+    if (!root) return;
+
+    const oldPrefix = `${oldPath}/`;
+    let next: string[] | null = null;
+    set((state) => {
+      let changed = false;
+      const rewritten = state.pinnedFiles.map((path) => {
+        if (path === oldPath) {
+          changed = true;
+          return newPath;
+        }
+        if (path.startsWith(oldPrefix)) {
+          changed = true;
+          return newPath + path.slice(oldPath.length);
+        }
+        return path;
+      });
+      if (!changed) return state;
+      const updated = dedupe(rewritten);
+      next = updated;
+      return { pinnedFiles: updated };
+    });
+    if (next) persistPinnedFiles(root, next);
+  },
+
+  bumpSidebarMetadataVersion: () => {
+    set((state) => ({ sidebarMetadataVersion: state.sidebarMetadataVersion + 1 }));
   },
 
   removeRecentWorkspace: async (path: string) => {

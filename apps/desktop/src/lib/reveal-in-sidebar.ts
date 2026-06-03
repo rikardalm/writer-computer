@@ -3,8 +3,7 @@ import { useWorkspaceStore } from "@/stores/workspace-store";
 
 interface RevealOptions {
   /** If the sidebar is currently hidden, flip the setting back on before
-   *  scrolling. Used by the explicit "Reveal in sidebar" menu action; the
-   *  auto-reveal hook leaves it off so collapsed sidebars stay collapsed. */
+   *  scrolling. Used by the explicit "Reveal in sidebar" menu action. */
   showSidebar?: boolean;
 }
 
@@ -44,8 +43,7 @@ async function waitForRow(path: string): Promise<HTMLElement | null> {
 /**
  * Make `path`'s row visible in the sidebar tree: expand every ancestor folder
  * from the workspace root down to the file's parent, then scroll the row into
- * view. The single coordinator for revealing a file — auto-reveal on file
- * open and the explicit tab-context-menu action both go through here.
+ * view. The explicit tab-context-menu action goes through here.
  *
  * No-op when the workspace isn't open or the path lives outside the
  * workspace root. Concurrent calls cancel earlier ones via a module-level

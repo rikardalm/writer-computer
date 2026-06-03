@@ -438,6 +438,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::fs::read_directory,
+            commands::fs::read_recent_files,
+            commands::fs::read_file_entries,
             commands::fs::read_file,
             commands::fs::write_file,
             commands::fs::create_file,

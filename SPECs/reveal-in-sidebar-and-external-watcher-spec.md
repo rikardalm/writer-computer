@@ -4,6 +4,8 @@
 
 Three related issues, all anchored on the seam between the editor's notion of "active file" and the sidebar tree:
 
+**2026-06-03 update:** the sidebar sections redesign intentionally removed auto-reveal on ordinary file open. Opening a file from Pinned, Recents, search, links, restore, or other entry points should not expand or scroll the `Everything` tree. The explicit `Reveal in sidebar` tab context menu action remains the opt-in path that expands ancestors and scrolls the tree row.
+
 1. **External file changes still drop occasionally.** The previous watcher spec ([`external-file-watcher-spec.md`](./external-file-watcher-spec.md)) landed three fixes (dotdir-root filter, canonical root, per-save self-write TTL window). Reports say the sidebar / open-editor reload still misses changes in some cases. We need a concrete diagnosis before patching further — the symptom is intermittent and prior guesses have layered on without confirming the next failure mode.
 2. **"Reveal in sidebar" tab-context-menu action is a no-op.** [`apps/desktop/src/components/editor-area/editor-tabs.tsx:138`](../apps/desktop/src/components/editor-area/editor-tabs.tsx) — `onRevealInSidebar` calls `setActiveTab(tab.id)`. That only updates the active tab; it does not expand ancestors, scroll the row into view, or force the sidebar open if it's collapsed. The highlight in `FileTreeNode` driven by `useIsActive` only paints when the row is already in the rendered, expanded slice of the tree.
 3. **No auto-reveal on file open.** Opening a file via wikilink Cmd-click, Cmd+P, drag-drop, recents, or the welcome screen updates `activeFilePath` in `editor-store` but never expands the sidebar's ancestor folders or scrolls the row into view. The user has to manually click through folders to locate the file they just opened.
@@ -12,15 +14,15 @@ Three related issues, all anchored on the seam between the editor's notion of "a
 
 ## Goals
 
-- A single function `revealPathInSidebar(path, opts)` is the only place that expands ancestors + scrolls the tree row into view. The tab context menu calls it; an auto-reveal hook subscribed to `activeFilePath` calls it; future entry points (e.g. "Go to definition" in MCP) call it.
-- Opening a file via any entry point lands the user with that file's row visible (parents expanded, scrolled into view) in the sidebar — without changing the call sites.
+- A single function `revealPathInSidebar(path, opts)` is the only place that expands ancestors + scrolls the tree row into view. The tab context menu calls it; future explicit reveal entry points (e.g. "Go to definition" in MCP) can call it.
+- Opening a file via ordinary entry points does not expand or scroll the sidebar tree.
 - The tab context menu's "Reveal in sidebar" works and shows the sidebar if it was collapsed.
 - The external watcher's remaining failure modes are characterized with reproducible recipes and addressed at the root cause; we stop layering guesses.
 
 ## Non-Goals
 
 - Selecting (highlighting in sidebar but not opening) on right-click of a tab — out of scope; the menu item opens **and** scrolls.
-- Auto-reveal on session restore is allowed but not required. Restore already sets `activeFilePath` synchronously, so the auto-reveal hook will fire once and either succeed or no-op depending on the tree's mount state. Either outcome is acceptable — we do not gate the hook on a "user-initiated" flag.
+- Auto-reveal on session restore is out of scope and currently disabled.
 - Polling fallback for filesystems where FSEvents/inotify don't deliver (network mounts, FUSE, iCloud sync deltas). Carried over from the prior spec.
 - A new sidebar tree implementation (virtualized list, alternate flatten algorithm, etc.). Existing flat-list render is fine; this spec only changes how we drive ancestor expansion and scroll.
 
@@ -146,7 +148,7 @@ Introduce a single coordinator that does the three jobs the action needs:
 1. Resolve the chain of ancestor directories from the workspace root to the file's parent.
 2. For each ancestor not in `expandedDirs`, call `toggleDirectory(dir)` and await it — this populates `directoryCache[dir]` if missing and adds `dir` to `expandedDirs`.
 3. After expansion, find the row via `[data-tree-path]` attribute on `FileTreeNode` and call `scrollIntoView({ behavior: "auto", block: "nearest" })`.
-4. Optionally force the sidebar open (`appearance.sidebar-visible = true`) — opt-in via a flag, **on** for the tab-context-menu use, **off** for auto-reveal.
+4. Optionally force the sidebar open (`appearance.sidebar-visible = true`) — opt-in via a flag, **on** for the tab-context-menu use.
 
 API shape:
 
@@ -158,12 +160,12 @@ export async function revealPathInSidebar(
 ): Promise<void>;
 ```
 
-Implementation lives in `lib/`, not as a hook, because it has no React state of its own — it reads from `workspace-store` / `settings-store`, calls store actions, and queries the DOM. It is invoked imperatively from event handlers (tab context menu) and from a React subscription hook (problem 3).
+Implementation lives in `lib/`, not as a hook, because it has no React state of its own — it reads from `workspace-store` / `settings-store`, calls store actions, and queries the DOM. It is invoked imperatively from event handlers (tab context menu).
 
 ### Edge cases
 
 - **Path outside the workspace root.** `path.startsWith(root + "/")` check up front; if false, no-op. (Cmd-click on an absolute wikilink outside the workspace is plausible.)
-- **Workspace not loaded yet.** No-op if `root === null`. The auto-reveal hook for problem 3 will re-fire when `root` lands and `activeFilePath` is still set.
+- **Workspace not loaded yet.** No-op if `root === null`.
 - **Ancestor directory is filtered by gitignore / `should_ignore`.** Not exposed in the tree, so the leaf can't be reached. `toggleDirectory` would silently succeed but the child wouldn't appear. Tolerable; the user opened a file outside the visible tree on purpose. Document the behavior, don't try to bypass the filter.
 - **Path's case differs from disk** (case-insensitive FS). The directory cache uses exact-string keys. Out of scope; the editor store already uses the path as-passed and would mismatch the watcher too.
 - **DOM row not present after expansion.** `directoryCache` write triggers a re-render but the row appears one paint later. Await one `requestAnimationFrame` (or `flushSync`-free equivalent) after the last `toggleDirectory` resolves, then query. If still missing (large list, virtualization later), fall back to a short polling loop bounded by ~5 frames.
@@ -173,54 +175,17 @@ Implementation lives in `lib/`, not as a hook, because it has no React state of 
 
 `FileTreeNode` gains a `data-tree-path={entry.path}` attribute on the `<button>`. Mirrors `data-tab-id` on tabs. No other change to the component.
 
-## Problem 3: Auto-reveal on file open
+## Problem 3: Ordinary file opens should not reveal
 
-### The seam
+The sidebar sections redesign added `Pinned` and `Recents` above the existing tree. With auto-reveal enabled, opening a file from those sections immediately expanded and scrolled the `Everything` tree to that file, which made the new top sections feel coupled to the tree and disrupted users who intentionally keep folders collapsed.
 
-Every file-open entry point (sidebar click, Cmd-click wikilink, command palette, drag-drop, welcome, recents, session restore) eventually mutates `useEditorStore.activeFilePath`. There is exactly one place where we can hook: a subscription on that field.
+Decision: ordinary file-open entry points only open the editor target. They do not call `revealPathInSidebar`, expand ancestor folders, or scroll the tree. The explicit `Reveal in sidebar` tab context menu action remains the opt-in path for that behavior.
 
-Confirmed entry points that converge here:
+Current behavior by entry point:
 
-- `editor-store.openFile` → sets `activeFilePath` ([`editor-store.ts:351`](../apps/desktop/src/stores/editor-store.ts))
-- `editor-store.openFileInNewTab` → sets `activeFilePath` (line 374)
-- `editor-store.replaceTabWithFile` → sets `activeFilePath` (line 461)
-- `editor-store.navigateToFile` → sets `activeFilePath` (line 596)
-- `editor-store.navigateBack`/`navigateForward` → sets `activeFilePath` (lines 648, 668)
-- `editor-store.setActiveFile` → sets `activeFilePath` (line 552)
-- `editor-store.setActiveTab` → derives `activeFilePath` (line 558)
-- `editor-store.restoreSession` → sets via the same derivation
-
-Touching this one seam reveals on every path without per-call-site changes. No need to sprinkle `revealPathInSidebar(...)` at each `openFile` call.
-
-### Hook shape
-
-Per CLAUDE.md / [`feedback_no_useeffect_in_components.md`](../../../../.claude/projects/-Users-joel-j-projects-writer-computer/memory/feedback_no_useeffect_in_components.md): no `useEffect` in components — abstract into a hook.
-
-```ts
-// apps/desktop/src/hooks/use-auto-reveal-active-file.ts
-export function useAutoRevealActiveFile() {
-  // Subscribes to editor-store.activeFilePath; on change to a non-null path
-  // that differs from the previous tick, calls revealPathInSidebar(path).
-  // Implementation can use either useEffect with selector subscription, or
-  // useStore.subscribe in a useEffect to avoid render-time work.
-}
-```
-
-Mounted once at `App` root next to `useFileWatcher()`.
-
-### Edge cases
-
-- **Same-path repeats** (refresh button, no-op tab switch): hook compares previous-vs-next path, no reveal on equal.
-- **Path nulled** (closed last tab, launcher active): no-op.
-- **Path changes during session restore** before sidebar mounts: `revealPathInSidebar` checks `root` and reads `directoryCache` lazily; if no root yet, no-op. The subscription fires again whenever `activeFilePath` re-changes — but on restore that's once. If the restored file's row isn't present at first paint (because we haven't expanded anything), the auto-reveal expands ancestors as part of its normal job. Acceptable.
-- **Rapid re-navigation** (back/forward held): each transition fires the hook. The async expand awaits `toggleDirectory` per ancestor; subsequent calls overlap. Add a single cancellation token (latest call wins) so we don't scroll to a stale path. Mirrors the `pendingNavigation` pattern already used in `editor-store`.
-- **`openFileInNewTab` from sidebar context menu**: this also reveals. Fine — the file is already visible by definition since the user right-clicked it.
-- **Wikilink Cmd-click on an open-but-collapsed sibling**: hook expands ancestors and scrolls. ✓
-- **Auto-reveal vs. user manually collapsing a parent immediately after open**: the user's collapse wins because the hook only fires on `activeFilePath` change, not on `expandedDirs` change.
-
-### Should auto-reveal force-open the sidebar?
-
-**No.** If the user collapsed the sidebar, they collapsed it on purpose. Auto-reveal only adjusts state inside the sidebar; it doesn't pop the chrome open. Only the explicit "Reveal in sidebar" action does that.
+- Pinned/Recents row click: opens the file, leaves `Everything` expansion and scroll state unchanged.
+- Cmd+P, wikilinks, drag-drop, welcome, launcher, back/forward, session restore: open/navigate only.
+- Tab context menu `Reveal in sidebar`: forces sidebar visible when needed, expands ancestors, and scrolls the row into view.
 
 ## Cross-cutting design notes
 
@@ -230,18 +195,17 @@ Mounted once at `App` root next to `useFileWatcher()`.
 
 ### Side-effect ownership
 
-Per [`docs/consolidation.md`](../docs/consolidation.md): one write path. The reveal coordinator owns the expansion/scroll side effects. Auto-reveal subscribes via a hook; the menu action calls the function directly. Both paths converge on the same `lib/reveal-in-sidebar.ts`.
+Per [`docs/consolidation.md`](../docs/consolidation.md): one write path. The reveal coordinator owns the expansion/scroll side effects, and explicit reveal actions call it directly. Ordinary file-open paths do not reveal.
 
 ### No registry of per-entry-point shims
 
-We deliberately do **not** add a `useRevealOnSidebarClick`, `useRevealOnWikiLink`, `useRevealOnCommandPalette`, etc. The seam is `activeFilePath`; one subscription covers all of them. Adding per-entry-point shims would be the "consolidation.md" anti-pattern.
+We deliberately do **not** add a `useRevealOnSidebarClick`, `useRevealOnWikiLink`, `useRevealOnCommandPalette`, etc. Ordinary open paths should not reveal. Explicit reveal actions call `revealPathInSidebar` directly.
 
 ### File-naming
 
 Per CLAUDE.md memory ([`feedback_kebab_case_filenames.md`](../../../../.claude/projects/-Users-joel-j-projects-writer-computer/memory/feedback_kebab_case_filenames.md)):
 
 - `apps/desktop/src/lib/reveal-in-sidebar.ts`
-- `apps/desktop/src/hooks/use-auto-reveal-active-file.ts`
 
 ## Acceptance criteria
 
@@ -251,17 +215,11 @@ Per CLAUDE.md memory ([`feedback_kebab_case_filenames.md`](../../../../.claude/p
 - [ ] Right-click on a tab while the sidebar is collapsed → "Reveal in sidebar" force-opens the sidebar (sets `appearance.sidebar-visible = true`), then performs the reveal.
 - [ ] Right-click on a tab whose file is _outside_ the workspace root → menu item is either omitted or no-ops gracefully (no console error).
 
-### Auto-reveal on file open (Problem 3)
+### Ordinary file opens (Problem 3)
 
-- [ ] Cmd-click a wikilink to a file in a collapsed deep folder → file opens **and** sidebar tree expands to it.
-- [ ] Open a file from Cmd+P → sidebar tree expands and scrolls to it.
-- [ ] Drag-drop a file in the workspace onto the window → opens and reveals.
-- [ ] Open a recent file from the welcome screen → reveals.
-- [ ] Open a file via the launcher tab's "Open file" button → reveals.
-- [ ] Back/forward navigation between files reveals each.
-- [ ] Auto-reveal does **not** force-open a collapsed sidebar.
-- [ ] Session restore on app start: if a file tab is active, the row is visible in the sidebar without the user having to expand anything.
-- [ ] Repeated activations of the same path do not re-scroll.
+- [ ] Click a Pinned or Recents row for a file in a collapsed deep folder → file opens and the `Everything` tree remains collapsed/unscrolled.
+- [ ] Open a file from Cmd+P, a wikilink, back/forward, drag-drop, welcome, or session restore → no automatic sidebar tree expansion occurs.
+- [ ] The explicit tab context menu `Reveal in sidebar` still expands and scrolls on demand.
 
 ### External file watcher (Problem 1)
 
@@ -272,7 +230,7 @@ Per CLAUDE.md memory ([`feedback_kebab_case_filenames.md`](../../../../.claude/p
 
 ### Cross-cutting
 
-- [ ] No `useEffect` in any component touched by this change — all logic in `useAutoRevealActiveFile` and `revealPathInSidebar`.
+- [ ] No component-level `useEffect` added for reveal behavior.
 - [ ] All new files kebab-case.
 - [ ] `vp check` and `vp test` pass.
 - [ ] `cargo test`, `cargo clippy`, `cargo fmt --check` pass under `apps/desktop/src-tauri/`.
@@ -287,5 +245,4 @@ Per CLAUDE.md memory ([`feedback_kebab_case_filenames.md`](../../../../.claude/p
 
 - [`SPECs/external-file-watcher-spec.md`](./external-file-watcher-spec.md) — prior watcher work this builds on.
 - [`docs/consolidation.md`](../docs/consolidation.md) — single source of truth, side-effect ownership.
-- [`docs/zustand.md`](../docs/zustand.md) — selector + subscription patterns for the auto-reveal hook.
 - [`apps/desktop/src/hooks/use-scroll-active-tab-into-view.ts`](../apps/desktop/src/hooks/use-scroll-active-tab-into-view.ts) — pattern to mirror for the scroll step (data attribute + `scrollIntoView({ block: "nearest" })`).

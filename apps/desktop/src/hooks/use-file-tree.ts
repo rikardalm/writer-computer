@@ -23,3 +23,27 @@ export function useInvalidatePath() {
 export function useRewriteExpandedDir() {
   return useWorkspaceStore((s) => s.rewriteExpandedDir);
 }
+
+export function usePinnedFiles() {
+  return useWorkspaceStore((s) => s.pinnedFiles);
+}
+
+export function useTogglePinnedFile() {
+  return useWorkspaceStore((s) => s.togglePinnedFile);
+}
+
+export function useRemovePinnedFile() {
+  return useWorkspaceStore((s) => s.removePinnedFile);
+}
+
+export function useRemovePinnedFilesWithPrefix() {
+  return useWorkspaceStore((s) => s.removePinnedFilesWithPrefix);
+}
+
+export function useRewritePinnedPath() {
+  return useWorkspaceStore((s) => s.rewritePinnedPath);
+}
+
+export function useSidebarMetadataVersion() {
+  return useWorkspaceStore((s) => s.sidebarMetadataVersion);
+}

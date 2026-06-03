@@ -18,6 +18,7 @@ use std::time::Instant;
 pub struct WorkspaceState {
     pub workspace_root: RwLock<Option<PathBuf>>,
     pub file_index: RwLock<Vec<IndexedFile>>,
+    pub recent_files_cache: RwLock<Option<Vec<IndexedFile>>>,
     pub dirs_with_markdown: RwLock<HashSet<PathBuf>>,
     /// Set to `true` after the first full index completes.
     /// When `false`, `dir_contains_markdown` falls back to recursive check.
@@ -65,6 +66,7 @@ pub struct IndexedFile {
     pub path: PathBuf,
     pub relative_path: String,
     pub name: String,
+    pub modified_at: u64,
 }
 
 impl Default for WorkspaceState {
@@ -72,6 +74,7 @@ impl Default for WorkspaceState {
         Self {
             workspace_root: RwLock::new(None),
             file_index: RwLock::new(Vec::new()),
+            recent_files_cache: RwLock::new(None),
             dirs_with_markdown: RwLock::new(HashSet::new()),
             index_ready: AtomicBool::new(false),
             watcher_handle: RwLock::new(None),
@@ -125,6 +128,45 @@ impl WorkspaceState {
 
     pub fn pop_pending_open(&self) -> Option<PendingOpenPayload> {
         self.pending_open.lock().pop_front()
+    }
+
+    pub fn invalidate_recent_files_cache(&self) {
+        *self.recent_files_cache.write() = None;
+    }
+
+    pub fn recent_files_slice(&self, offset: usize, limit: usize) -> Vec<IndexedFile> {
+        if self.recent_files_cache.read().is_none() {
+            let mut files = self.file_index.read().clone();
+            files.sort_by(|a, b| {
+                b.modified_at
+                    .cmp(&a.modified_at)
+                    .then_with(|| a.relative_path.cmp(&b.relative_path))
+            });
+            *self.recent_files_cache.write() = Some(files);
+        }
+
+        self.recent_files_cache
+            .read()
+            .as_ref()
+            .map(|files| files.iter().skip(offset).take(limit).cloned().collect())
+            .unwrap_or_default()
+    }
+
+    pub fn update_index_modified_at(&self, path: &Path, modified_at: u64) {
+        let mut changed = false;
+        {
+            let mut index = self.file_index.write();
+            if let Some(file) = index.iter_mut().find(|file| file.path == path) {
+                if file.modified_at != modified_at {
+                    file.modified_at = modified_at;
+                    changed = true;
+                }
+            }
+        }
+
+        if changed {
+            self.invalidate_recent_files_cache();
+        }
     }
 
     pub fn has_pending_workspace(&self, path: &Path) -> bool {

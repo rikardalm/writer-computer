@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DirEntry {
@@ -105,7 +105,7 @@ fn extract_leading_h1(text: &str) -> Option<String> {
     None
 }
 
-fn modified_time(path: &std::path::Path) -> u64 {
+pub(crate) fn modified_time(path: &std::path::Path) -> u64 {
     fs::metadata(path)
         .and_then(|m| m.modified())
         .map(|t| {
@@ -294,9 +294,87 @@ pub async fn write_file(
     // the echo — if another window is watching the same workspace it
     // still sees a genuine file-changed event.
     let state = app.state::<AppState>().get_or_create(webview.label());
+    let label = webview.label().to_string();
     crate::watcher::record_write(&state, &PathBuf::from(&path));
 
-    blocking(move || write_file_impl(&path, &content)).await
+    let write_path = PathBuf::from(&path);
+    let result = blocking(move || write_file_impl(&path, &content)).await?;
+    state.update_index_modified_at(&write_path, result.modified_at);
+    let _ = app.emit_to(label, "sidebar:metadata-changed", &result.path);
+    Ok(result)
+}
+
+fn markdown_file_entry(path: &Path) -> Option<DirEntry> {
+    if !path.is_file() || path.extension().and_then(|e| e.to_str()) != Some("md") {
+        return None;
+    }
+
+    let name = path.file_name()?.to_string_lossy().to_string();
+    Some(DirEntry {
+        name,
+        path: path.to_string_lossy().to_string(),
+        is_dir: false,
+        is_markdown: true,
+        modified_at: modified_time(path),
+        title: extract_title(path),
+    })
+}
+
+pub fn read_recent_files_impl(
+    state: &WorkspaceState,
+    limit: usize,
+    offset: usize,
+) -> Vec<DirEntry> {
+    state
+        .recent_files_slice(offset, limit)
+        .into_iter()
+        .filter_map(|file| markdown_file_entry(&file.path))
+        .collect()
+}
+
+#[tauri::command]
+pub async fn read_recent_files(
+    limit: Option<u32>,
+    offset: Option<u32>,
+    webview: tauri::Webview,
+    app: tauri::AppHandle,
+) -> Result<Vec<DirEntry>, AppError> {
+    let state = app.state::<AppState>().get_or_create(webview.label());
+    if state.workspace_root.read().is_none() {
+        return Err(AppError::NoWorkspace);
+    }
+
+    let limit = limit.unwrap_or(8).clamp(1, 100) as usize;
+    let offset = offset.unwrap_or(0) as usize;
+    blocking(move || Ok(read_recent_files_impl(&state, limit, offset))).await
+}
+
+pub fn read_file_entries_impl(paths: Vec<String>, root: &Path) -> Vec<DirEntry> {
+    paths
+        .into_iter()
+        .filter_map(|path| {
+            let path = PathBuf::from(path);
+            if !path.starts_with(root) {
+                return None;
+            }
+            markdown_file_entry(&path)
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub async fn read_file_entries(
+    paths: Vec<String>,
+    webview: tauri::Webview,
+    app: tauri::AppHandle,
+) -> Result<Vec<DirEntry>, AppError> {
+    let state = app.state::<AppState>().get_or_create(webview.label());
+    let root = state
+        .workspace_root
+        .read()
+        .clone()
+        .ok_or(AppError::NoWorkspace)?;
+    blocking(move || Ok(read_file_entries_impl(paths, &root))).await
 }
 
 pub fn create_file_impl(path: &str) -> Result<FileContent, AppError> {
@@ -499,6 +577,96 @@ mod tests {
         assert_eq!(result.len(), 3);
         assert!(result[0].is_dir);
         assert_eq!(result[0].name, "notes");
+    }
+
+    fn indexed_file(root: &Path, name: &str, modified_at: u64) -> crate::state::IndexedFile {
+        let path = root.join(name);
+        crate::state::IndexedFile {
+            path,
+            relative_path: name.to_string(),
+            name: name.to_string(),
+            modified_at,
+        }
+    }
+
+    #[test]
+    fn test_read_recent_files_sorts_by_index_mtime_and_pages() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("old.md"), "# Old").unwrap();
+        fs::write(dir.path().join("new.md"), "# New").unwrap();
+        fs::write(dir.path().join("middle.md"), "# Middle").unwrap();
+        let state = WorkspaceState::default();
+        *state.file_index.write() = vec![
+            indexed_file(dir.path(), "old.md", 1),
+            indexed_file(dir.path(), "new.md", 3),
+            indexed_file(dir.path(), "middle.md", 2),
+        ];
+
+        let first_page = read_recent_files_impl(&state, 2, 0);
+        assert_eq!(
+            first_page
+                .iter()
+                .map(|entry| entry.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["new.md", "middle.md"]
+        );
+
+        let second_page = read_recent_files_impl(&state, 2, 2);
+        assert_eq!(
+            second_page
+                .iter()
+                .map(|entry| entry.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["old.md"]
+        );
+    }
+
+    #[test]
+    fn test_read_recent_files_cache_invalidates_on_mtime_update() {
+        let dir = TempDir::new().unwrap();
+        let old_path = dir.path().join("old.md");
+        fs::write(&old_path, "# Old").unwrap();
+        fs::write(dir.path().join("new.md"), "# New").unwrap();
+        let state = WorkspaceState::default();
+        *state.file_index.write() = vec![
+            indexed_file(dir.path(), "old.md", 1),
+            indexed_file(dir.path(), "new.md", 2),
+        ];
+
+        let before = read_recent_files_impl(&state, 1, 0);
+        assert_eq!(before[0].name, "new.md");
+
+        state.update_index_modified_at(&old_path, 5);
+
+        let after = read_recent_files_impl(&state, 1, 0);
+        assert_eq!(after[0].name, "old.md");
+    }
+
+    #[test]
+    fn test_read_file_entries_filters_missing_non_markdown_and_outside_root() {
+        let dir = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        let kept = dir.path().join("kept.md");
+        fs::write(&kept, "# Kept").unwrap();
+        fs::write(dir.path().join("note.txt"), "not markdown").unwrap();
+        fs::write(outside.path().join("outside.md"), "# Outside").unwrap();
+
+        let entries = read_file_entries_impl(
+            vec![
+                kept.to_string_lossy().to_string(),
+                dir.path().join("missing.md").to_string_lossy().to_string(),
+                dir.path().join("note.txt").to_string_lossy().to_string(),
+                outside
+                    .path()
+                    .join("outside.md")
+                    .to_string_lossy()
+                    .to_string(),
+            ],
+            dir.path(),
+        );
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].name, "kept.md");
     }
 
     #[test]

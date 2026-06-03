@@ -15,6 +15,14 @@ export function readDirectory(path: string): Promise<DirEntry[]> {
   return invoke("read_directory", { path });
 }
 
+export function readRecentFiles(limit: number, offset: number): Promise<DirEntry[]> {
+  return invoke("read_recent_files", { limit, offset });
+}
+
+export function readFileEntries(paths: string[]): Promise<DirEntry[]> {
+  return invoke("read_file_entries", { paths });
+}
+
 export function readFile(path: string): Promise<FileContent> {
   return invoke("read_file", { path });
 }

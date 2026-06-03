@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-06-03
+
+- Redesign the sidebar into collapsible `Pinned`, `Recents`, and `Everything` sections. The existing file tree now lives under Everything; files can be pinned/unpinned into Pinned; Recents is metadata-sorted from the workspace index with cached pagination so Show More does not rescan the workspace.
+- Stop auto-expanding and scrolling the `Everything` tree when a file is opened from Pinned, Recents, search, links, or other open paths. The explicit tab context menu `Reveal in sidebar` action still expands ancestors and scrolls the tree on demand.
+- Add a large subtle shadow to the shared floating card surface used by the command palette and related popovers.
+
 ## 2026-06-01
 
 - Stabilize scrolling through documents with folded Markdown tables. Table preview widgets now provide CodeMirror with a deterministic height estimate before they enter the measured viewport, so the editor no longer suddenly changes document height, scrollbar thumb size, or scroll position as tables virtualize in.

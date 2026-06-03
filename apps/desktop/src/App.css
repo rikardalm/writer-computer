@@ -224,6 +224,7 @@ input {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--line-subtler);
   border-radius: 16px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
   isolation: isolate;
 }
 

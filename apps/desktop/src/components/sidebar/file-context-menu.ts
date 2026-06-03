@@ -8,6 +8,7 @@ export { detectPlatform, revealLabelForPlatform, type Platform } from "./context
 export type FileMenuActionId =
   | "open"
   | "open-in-new-tab"
+  | "toggle-pin"
   | "duplicate"
   | "copy-relative-path"
   | "copy-absolute-path"
@@ -16,8 +17,10 @@ export type FileMenuActionId =
   | "delete";
 
 export interface FileContextMenuHandlers {
+  isPinned?: boolean;
   onOpen: () => void;
   onOpenInNewTab: () => void;
+  onTogglePin: () => void;
   onDuplicate: () => void;
   onCopyRelativePath: () => void;
   onCopyAbsolutePath: () => void;
@@ -44,6 +47,12 @@ export function buildFileMenuItemsSpec(
       id: "open-in-new-tab",
       text: "Open in new tab",
       action: handlers.onOpenInNewTab,
+    },
+    {
+      kind: "item",
+      id: "toggle-pin",
+      text: handlers.isPinned ? "Unpin" : "Pin",
+      action: handlers.onTogglePin,
     },
     { kind: "separator" },
     { kind: "item", id: "duplicate", text: "Duplicate", action: handlers.onDuplicate },

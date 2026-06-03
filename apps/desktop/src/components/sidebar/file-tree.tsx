@@ -4,8 +4,13 @@ import {
   useDirectoryCache,
   useExpandedDirs,
   useInvalidatePath,
+  usePinnedFiles,
   useRefreshDirectory,
+  useRemovePinnedFile,
+  useRemovePinnedFilesWithPrefix,
+  useRewritePinnedPath,
   useRewriteExpandedDir,
+  useTogglePinnedFile,
   useToggleDirectory,
 } from "@/hooks/use-file-tree";
 import { useOpenFile } from "@/hooks/use-tabs";
@@ -65,6 +70,11 @@ export function FileTree({ rootPath }: FileTreeProps) {
   const refreshDirectory = useRefreshDirectory();
   const invalidatePath = useInvalidatePath();
   const rewriteExpandedDir = useRewriteExpandedDir();
+  const rewritePinnedPath = useRewritePinnedPath();
+  const removePinnedFile = useRemovePinnedFile();
+  const removePinnedFilesWithPrefix = useRemovePinnedFilesWithPrefix();
+  const pinnedFiles = usePinnedFiles();
+  const togglePinnedFile = useTogglePinnedFile();
   const workspaceRoot = useWorkspaceRoot();
   const fileLabelMode = useSetting("appearance.sidebar-file-label");
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
@@ -162,6 +172,7 @@ export function FileTree({ rootPath }: FileTreeProps) {
           await tauri.renameEntry(entry.path, newPath);
           rewritePathPrefix(entry.path, newPath);
           rewriteExpandedDir(entry.path, newPath);
+          rewritePinnedPath(entry.path, newPath);
           await refreshDirectory(parent);
         } catch (error) {
           window.alert(
@@ -185,6 +196,7 @@ export function FileTree({ rootPath }: FileTreeProps) {
           }
           await tauri.renameEntry(entry.path, newPath);
           renameOpenFile(entry.path, newPath);
+          rewritePinnedPath(entry.path, newPath);
           await refreshDirectory(parent);
         } catch (error) {
           window.alert(
@@ -193,7 +205,7 @@ export function FileTree({ rootPath }: FileTreeProps) {
         }
       }
     },
-    [refreshDirectory, rewriteExpandedDir],
+    [refreshDirectory, rewriteExpandedDir, rewritePinnedPath],
   );
 
   const handleRenameCancel = useCallback(() => {
@@ -206,6 +218,7 @@ export function FileTree({ rootPath }: FileTreeProps) {
       const relative = workspaceRoot ? getRelativePath(entry.path, workspaceRoot) : entry.path;
 
       void showFileContextMenu({
+        isPinned: pinnedFiles.includes(entry.path),
         onOpen: () => {
           void openFile(entry.path);
         },
@@ -228,6 +241,9 @@ export function FileTree({ rootPath }: FileTreeProps) {
               );
             }
           })();
+        },
+        onTogglePin: () => {
+          togglePinnedFile(entry.path);
         },
         onCopyRelativePath: () => {
           void writeText(relative);
@@ -257,6 +273,7 @@ export function FileTree({ rootPath }: FileTreeProps) {
             try {
               await tauri.deleteEntry(entry.path);
               removePathReferences(entry.path);
+              removePinnedFile(entry.path);
               await refreshDirectory(parent);
             } catch (error) {
               window.alert(
@@ -267,7 +284,7 @@ export function FileTree({ rootPath }: FileTreeProps) {
         },
       });
     },
-    [openFile, refreshDirectory, workspaceRoot],
+    [openFile, pinnedFiles, refreshDirectory, removePinnedFile, togglePinnedFile, workspaceRoot],
   );
 
   const handleFolderContextMenu = useCallback(
@@ -352,6 +369,7 @@ export function FileTree({ rootPath }: FileTreeProps) {
             try {
               await tauri.deleteEntry(entry.path);
               removePathsWithPrefix(entry.path);
+              removePinnedFilesWithPrefix(entry.path);
               invalidatePath(entry.path);
               await refreshDirectory(parent);
             } catch (error) {
@@ -363,7 +381,14 @@ export function FileTree({ rootPath }: FileTreeProps) {
         },
       });
     },
-    [expandedDirs, invalidatePath, refreshDirectory, toggleDirectory, workspaceRoot],
+    [
+      expandedDirs,
+      invalidatePath,
+      refreshDirectory,
+      removePinnedFilesWithPrefix,
+      toggleDirectory,
+      workspaceRoot,
+    ],
   );
 
   const handleBulkContextMenu = useCallback(
@@ -406,6 +431,8 @@ export function FileTree({ rootPath }: FileTreeProps) {
                 try {
                   await tauri.deleteEntry(p);
                   removePathReferences(p);
+                  removePinnedFile(p);
+                  removePinnedFilesWithPrefix(p);
                   parentDirs.add(getParentDir(p));
                 } catch (error) {
                   window.alert(
@@ -425,7 +452,7 @@ export function FileTree({ rootPath }: FileTreeProps) {
         pathArray.length,
       );
     },
-    [refreshDirectory, workspaceRoot],
+    [refreshDirectory, removePinnedFile, removePinnedFilesWithPrefix, workspaceRoot],
   );
 
   const handleContextMenu = useCallback(
@@ -455,7 +482,7 @@ export function FileTree({ rootPath }: FileTreeProps) {
   }
 
   return (
-    <div className="flex flex-col gap-px py-2" role="tree" aria-label="File tree">
+    <div className="flex flex-col gap-px" role="tree" aria-label="File tree">
       {flatItems.map((item) => (
         <FileTreeNode
           key={item.entry.path}

@@ -54,6 +54,7 @@ pub fn index_workspace(
     }
 
     *state.file_index.write() = indexed;
+    state.invalidate_recent_files_cache();
     *state.dirs_with_markdown.write() = dirs;
     state.index_ready.store(true, Ordering::Relaxed);
 
@@ -206,6 +207,7 @@ pub fn index_workspace_impl(
                         path: entry.path().to_path_buf(),
                         relative_path: rel,
                         name: entry.file_name().to_string_lossy().to_string(),
+                        modified_at: crate::commands::fs::modified_time(entry.path()),
                     });
                 }
                 ignore::WalkState::Continue

@@ -26,6 +26,23 @@ describe("filesystem IPC wrappers", () => {
     });
   });
 
+  test("readRecentFiles calls correct command", async () => {
+    mockedInvoke.mockResolvedValue([]);
+    await ipc.readRecentFiles(12, 6);
+    expect(mockedInvoke).toHaveBeenCalledWith("read_recent_files", {
+      limit: 12,
+      offset: 6,
+    });
+  });
+
+  test("readFileEntries calls correct command", async () => {
+    mockedInvoke.mockResolvedValue([]);
+    await ipc.readFileEntries(["/test/a.md", "/test/b.md"]);
+    expect(mockedInvoke).toHaveBeenCalledWith("read_file_entries", {
+      paths: ["/test/a.md", "/test/b.md"],
+    });
+  });
+
   test("readFile calls correct command", async () => {
     mockedInvoke.mockResolvedValue({ path: "/test.md", content: "", modified_at: 0 });
     await ipc.readFile("/test.md");
