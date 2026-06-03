@@ -14,7 +14,7 @@ export function SidebarSection({ title, children }: SidebarSectionProps) {
         type="button"
         aria-expanded={!isCollapsed}
         onClick={() => setIsCollapsed((collapsed) => !collapsed)}
-        className="group flex h-5 items-center gap-1 pl-3 pr-2 text-left text-[11px] font-medium tracking-[0.02em] text-[var(--text-muted)] opacity-60 hover:opacity-100"
+        className="group flex h-5 items-center gap-1 pl-3 pr-2 text-left text-[12px] font-medium tracking-normal text-[var(--text-muted)] opacity-60 hover:opacity-100"
       >
         <span>{title}</span>
         <span

@@ -42,7 +42,7 @@ Redesign the sidebar into three ordered sections: `Pinned`, `Recents`, and `Ever
 ## UX Decisions
 
 - Section order: `Pinned`, `Recents`, `Everything`.
-- Each section label has a caret immediately to the right of the label text. Clicking the label row toggles the section body.
+- Each 12px section label uses normal letter spacing and has a caret immediately to the right of the label text. Clicking the label row toggles the section body.
 - Initial visible count: small enough to keep the tree prominent; `Show More` reveals/fetches the next page.
 - Empty `Pinned` / `Recents` sections are hidden until they have entries.
 - Flat section rows use the same document label setting as the tree.
