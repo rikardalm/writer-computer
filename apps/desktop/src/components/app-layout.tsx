@@ -188,14 +188,22 @@ export function AppLayout() {
       >
         <div className="flex items-center gap-1">
           <SidebarToggleButton />
-          <TerminalToggleButton />
         </div>
+      </div>
+      <div
+        className="pointer-events-auto absolute top-0 right-0 z-50 flex items-center"
+        style={{
+          height: "calc(var(--chrome-control-height) + var(--chrome-control-padding) * 2)",
+          padding: "var(--chrome-control-padding) 12px",
+        }}
+      >
+        <TerminalToggleButton />
       </div>
       <div
         className="pointer-events-none absolute top-0 z-40"
         style={{
           left: tabChromeLeft,
-          right: 12,
+          right: 56,
           transition: isSidebarDragging ? "none" : "left 140ms ease-out",
         }}
       >

@@ -2,6 +2,7 @@
 
 ## 2026-06-15
 
+- Move the embedded terminal toggle from the sidebar controls to the top-right app chrome.
 - Smooth embedded terminal resizing by throttling drag updates, disabling resize transitions during drag, and preventing transient tiny PTY sizes from reaching terminal TUIs.
 - Open the right-side embedded terminal at a wider viewport-relative default, and allow it to be resized wider.
 - Add root-level New File and New Folder actions when right-clicking blank space in the sidebar file tree.
