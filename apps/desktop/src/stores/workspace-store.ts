@@ -73,6 +73,13 @@ function dedupe(paths: string[]) {
   return [...new Set(paths)];
 }
 
+function sortDirectoryEntries(entries: DirEntry[]) {
+  return [...entries].sort((a, b) => {
+    if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
+    return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+  });
+}
+
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   root: null,
   fileCount: 0,
@@ -208,9 +215,20 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   refreshDirectory: async (path: string) => {
     const entries = await tauri.readDirectory(path);
+    const existingVisibleDirs = (get().directoryCache.get(path) ?? []).filter(
+      (entry) => entry.is_dir && !entries.some((candidate) => candidate.path === entry.path),
+    );
+    const existingDirsStillOnDisk = (
+      await Promise.all(
+        existingVisibleDirs.map(async (entry) =>
+          (await tauri.fileExists(entry.path)) ? entry : null,
+        ),
+      )
+    ).filter((entry): entry is DirEntry => entry !== null);
+
     set((state) => {
       const cache = new Map(state.directoryCache);
-      cache.set(path, entries);
+      cache.set(path, sortDirectoryEntries([...entries, ...existingDirsStillOnDisk]));
       return { directoryCache: cache };
     });
   },
@@ -219,10 +237,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     set((state) => {
       const current = state.directoryCache.get(parentPath) ?? [];
       const withoutExisting = current.filter((candidate) => candidate.path !== entry.path);
-      const entries = [...withoutExisting, entry].sort((a, b) => {
-        if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
-        return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-      });
+      const entries = sortDirectoryEntries([...withoutExisting, entry]);
       const cache = new Map(state.directoryCache);
       cache.set(parentPath, entries);
       return { directoryCache: cache };

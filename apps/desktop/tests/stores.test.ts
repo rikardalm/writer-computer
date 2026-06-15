@@ -165,6 +165,65 @@ describe("workspace-store", () => {
     ]);
   });
 
+  test("refreshDirectory preserves visible empty folders that still exist on disk", async () => {
+    useWorkspaceStore.setState({
+      directoryCache: new Map([
+        [
+          "/test",
+          [
+            {
+              name: "Untitled Folder",
+              path: "/test/Untitled Folder",
+              is_dir: true,
+              is_markdown: false,
+              modified_at: 1,
+              title: null,
+            },
+          ],
+        ],
+      ]),
+    });
+    mockedInvoke.mockImplementation(async (cmd: string, args?: unknown) => {
+      if (cmd === "read_directory") {
+        return [
+          {
+            name: "z.md",
+            path: "/test/z.md",
+            is_dir: false,
+            is_markdown: true,
+            modified_at: 0,
+            title: null,
+          },
+        ];
+      }
+      if (cmd === "file_exists") {
+        return (args as { path: string }).path === "/test/Untitled Folder";
+      }
+      return null;
+    });
+
+    await useWorkspaceStore.getState().refreshDirectory("/test");
+
+    expect(useWorkspaceStore.getState().directoryCache.get("/test")).toEqual([
+      {
+        name: "Untitled Folder",
+        path: "/test/Untitled Folder",
+        is_dir: true,
+        is_markdown: false,
+        modified_at: 1,
+        title: null,
+      },
+      {
+        name: "z.md",
+        path: "/test/z.md",
+        is_dir: false,
+        is_markdown: true,
+        modified_at: 0,
+        title: null,
+      },
+    ]);
+  });
+
   test("togglePinnedFile adds and removes workspace file paths", () => {
     useWorkspaceStore.setState({ root: "/test", pinnedFiles: [] });
 
