@@ -14,6 +14,7 @@
 - Keep manual terminal resizing local to the current window session.
 - Add a root sidebar context menu for blank tree space with `New File` and `New Folder`.
 - Reuse the existing create-refresh-inline-rename flow so new root items behave like new items created from folder rows.
+- Optimistically keep newly-created empty folders in the sidebar cache because normal directory reads intentionally hide directories until they contain markdown.
 
 ## Validation
 

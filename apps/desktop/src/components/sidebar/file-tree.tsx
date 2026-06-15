@@ -12,6 +12,7 @@ import {
   useRewriteExpandedDir,
   useTogglePinnedFile,
   useToggleDirectory,
+  useUpsertDirectoryEntry,
 } from "@/hooks/use-file-tree";
 import { useOpenFile } from "@/hooks/use-tabs";
 import { useSetting } from "@/hooks/use-settings";
@@ -69,6 +70,7 @@ export function FileTree({ rootPath }: FileTreeProps) {
   const toggleDirectory = useToggleDirectory();
   const openFile = useOpenFile();
   const refreshDirectory = useRefreshDirectory();
+  const upsertDirectoryEntry = useUpsertDirectoryEntry();
   const invalidatePath = useInvalidatePath();
   const rewriteExpandedDir = useRewriteExpandedDir();
   const rewritePinnedPath = useRewritePinnedPath();
@@ -171,10 +173,12 @@ export function FileTree({ rootPath }: FileTreeProps) {
             return;
           }
           await tauri.renameEntry(entry.path, newPath);
+          const renamedEntry = { ...entry, name: trimmed, path: newPath };
           rewritePathPrefix(entry.path, newPath);
           rewriteExpandedDir(entry.path, newPath);
           rewritePinnedPath(entry.path, newPath);
           await refreshDirectory(parent);
+          upsertDirectoryEntry(parent, renamedEntry);
         } catch (error) {
           window.alert(
             `Failed to rename: ${error instanceof Error ? error.message : String(error)}`,
@@ -206,7 +210,7 @@ export function FileTree({ rootPath }: FileTreeProps) {
         }
       }
     },
-    [refreshDirectory, rewriteExpandedDir, rewritePinnedPath],
+    [refreshDirectory, rewriteExpandedDir, rewritePinnedPath, upsertDirectoryEntry],
   );
 
   const handleRenameCancel = useCallback(() => {
@@ -317,13 +321,14 @@ export function FileTree({ rootPath }: FileTreeProps) {
           void (async () => {
             try {
               const folderPath = await resolveUniqueName(entry.path, "Untitled Folder", "");
-              await tauri.createDirectory(folderPath);
+              const folderEntry = await tauri.createDirectory(folderPath);
               // Expand the parent folder so the new folder is visible
               if (!expandedDirs.has(entry.path)) {
                 await toggleDirectory(entry.path);
               } else {
                 await refreshDirectory(entry.path);
               }
+              upsertDirectoryEntry(entry.path, folderEntry);
               setRenamingPath(folderPath);
             } catch (error) {
               window.alert(
@@ -388,6 +393,7 @@ export function FileTree({ rootPath }: FileTreeProps) {
       refreshDirectory,
       removePinnedFilesWithPrefix,
       toggleDirectory,
+      upsertDirectoryEntry,
       workspaceRoot,
     ],
   );
@@ -419,8 +425,9 @@ export function FileTree({ rootPath }: FileTreeProps) {
           void (async () => {
             try {
               const folderPath = await resolveUniqueName(rootPath, "Untitled Folder", "");
-              await tauri.createDirectory(folderPath);
+              const folderEntry = await tauri.createDirectory(folderPath);
               await refreshDirectory(rootPath);
+              upsertDirectoryEntry(rootPath, folderEntry);
               setRenamingPath(folderPath);
             } catch (error) {
               window.alert(
@@ -431,7 +438,7 @@ export function FileTree({ rootPath }: FileTreeProps) {
         },
       });
     },
-    [refreshDirectory, rootPath],
+    [refreshDirectory, rootPath, upsertDirectoryEntry],
   );
 
   const handleBulkContextMenu = useCallback(

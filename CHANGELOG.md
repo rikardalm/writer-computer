@@ -2,6 +2,7 @@
 
 ## 2026-06-15
 
+- Keep newly-created empty sidebar folders visible so the root and folder-row New Folder actions enter rename mode instead of appearing to do nothing.
 - Move the embedded terminal toggle from the sidebar controls to the top-right app chrome.
 - Smooth embedded terminal resizing by throttling drag updates, disabling resize transitions during drag, and preventing transient tiny PTY sizes from reaching terminal TUIs.
 - Open the right-side embedded terminal at a wider viewport-relative default, and allow it to be resized wider.

@@ -117,6 +117,54 @@ describe("workspace-store", () => {
     expect(useWorkspaceStore.getState().directoryCache.has("/test")).toBe(false);
   });
 
+  test("upsertDirectoryEntry keeps freshly-created empty folders visible", () => {
+    useWorkspaceStore.setState({
+      directoryCache: new Map([
+        [
+          "/test",
+          [
+            {
+              name: "z.md",
+              path: "/test/z.md",
+              is_dir: false,
+              is_markdown: true,
+              modified_at: 0,
+              title: null,
+            },
+          ],
+        ],
+      ]),
+    });
+
+    useWorkspaceStore.getState().upsertDirectoryEntry("/test", {
+      name: "Untitled Folder",
+      path: "/test/Untitled Folder",
+      is_dir: true,
+      is_markdown: false,
+      modified_at: 1,
+      title: null,
+    });
+
+    expect(useWorkspaceStore.getState().directoryCache.get("/test")).toEqual([
+      {
+        name: "Untitled Folder",
+        path: "/test/Untitled Folder",
+        is_dir: true,
+        is_markdown: false,
+        modified_at: 1,
+        title: null,
+      },
+      {
+        name: "z.md",
+        path: "/test/z.md",
+        is_dir: false,
+        is_markdown: true,
+        modified_at: 0,
+        title: null,
+      },
+    ]);
+  });
+
   test("togglePinnedFile adds and removes workspace file paths", () => {
     useWorkspaceStore.setState({ root: "/test", pinnedFiles: [] });
 

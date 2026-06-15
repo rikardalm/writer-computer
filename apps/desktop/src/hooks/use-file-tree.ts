@@ -16,6 +16,10 @@ export function useRefreshDirectory() {
   return useWorkspaceStore((s) => s.refreshDirectory);
 }
 
+export function useUpsertDirectoryEntry() {
+  return useWorkspaceStore((s) => s.upsertDirectoryEntry);
+}
+
 export function useInvalidatePath() {
   return useWorkspaceStore((s) => s.invalidatePath);
 }

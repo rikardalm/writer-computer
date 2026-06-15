@@ -24,6 +24,7 @@ interface WorkspaceState {
   closeWorkspace: () => void;
   setStartupResolved: () => void;
   refreshDirectory: (path: string) => Promise<void>;
+  upsertDirectoryEntry: (parentPath: string, entry: DirEntry) => void;
   toggleDirectory: (path: string) => Promise<void>;
   invalidatePath: (path: string) => void;
   rewriteExpandedDir: (oldPath: string, newPath: string) => void;
@@ -210,6 +211,20 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     set((state) => {
       const cache = new Map(state.directoryCache);
       cache.set(path, entries);
+      return { directoryCache: cache };
+    });
+  },
+
+  upsertDirectoryEntry: (parentPath: string, entry: DirEntry) => {
+    set((state) => {
+      const current = state.directoryCache.get(parentPath) ?? [];
+      const withoutExisting = current.filter((candidate) => candidate.path !== entry.path);
+      const entries = [...withoutExisting, entry].sort((a, b) => {
+        if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
+        return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+      });
+      const cache = new Map(state.directoryCache);
+      cache.set(parentPath, entries);
       return { directoryCache: cache };
     });
   },
