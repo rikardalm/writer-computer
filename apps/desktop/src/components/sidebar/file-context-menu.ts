@@ -1,6 +1,7 @@
 import { Menu } from "@tauri-apps/api/menu/menu";
 import { PredefinedMenuItem } from "@tauri-apps/api/menu/predefinedMenuItem";
 import { MenuItem } from "@tauri-apps/api/menu/menuItem";
+import { Submenu } from "@tauri-apps/api/menu/submenu";
 import { detectPlatform, revealLabelForPlatform, type Platform } from "./context-menu-utils";
 
 export { detectPlatform, revealLabelForPlatform, type Platform } from "./context-menu-utils";
@@ -10,6 +11,8 @@ export type FileMenuActionId =
   | "open-in-new-tab"
   | "toggle-pin"
   | "duplicate"
+  | "move-to"
+  | `move-to-${string}`
   | "copy-relative-path"
   | "copy-absolute-path"
   | "reveal"
@@ -22,12 +25,24 @@ export interface FileContextMenuHandlers {
   onOpenInNewTab: () => void;
   onTogglePin: () => void;
   onDuplicate: () => void;
+  moveDestinations?: MoveDestination[];
   onCopyRelativePath: () => void;
   onCopyAbsolutePath: () => void;
   onReveal: () => void;
   onRename: () => void;
   onDelete: () => void;
 }
+
+export interface MoveDestination {
+  id: string;
+  text: string;
+  action: () => void;
+}
+
+type FileMenuItemSpec =
+  | { kind: "item"; id: FileMenuActionId; text: string; action: () => void }
+  | { kind: "separator" }
+  | { kind: "submenu"; id: FileMenuActionId; text: string; items: FileMenuItemSpec[] };
 
 /**
  * Build the items array for the file row context menu in the order described
@@ -37,10 +52,8 @@ export interface FileContextMenuHandlers {
 export function buildFileMenuItemsSpec(
   handlers: FileContextMenuHandlers,
   platform: Platform = detectPlatform(),
-): Array<
-  { kind: "item"; id: FileMenuActionId; text: string; action: () => void } | { kind: "separator" }
-> {
-  return [
+): FileMenuItemSpec[] {
+  const items: FileMenuItemSpec[] = [
     { kind: "item", id: "open", text: "Open", action: handlers.onOpen },
     {
       kind: "item",
@@ -56,6 +69,23 @@ export function buildFileMenuItemsSpec(
     },
     { kind: "separator" },
     { kind: "item", id: "duplicate", text: "Duplicate", action: handlers.onDuplicate },
+  ];
+
+  if (handlers.moveDestinations && handlers.moveDestinations.length > 0) {
+    items.push({
+      kind: "submenu",
+      id: "move-to",
+      text: "Move to",
+      items: handlers.moveDestinations.map((destination) => ({
+        kind: "item",
+        id: `move-to-${destination.id}`,
+        text: destination.text,
+        action: destination.action,
+      })),
+    });
+  }
+
+  items.push(
     { kind: "separator" },
     {
       kind: "item",
@@ -79,7 +109,9 @@ export function buildFileMenuItemsSpec(
     { kind: "separator" },
     { kind: "item", id: "rename", text: "Rename...", action: handlers.onRename },
     { kind: "item", id: "delete", text: "Delete", action: handlers.onDelete },
-  ];
+  );
+
+  return items;
 }
 
 /**
@@ -90,18 +122,27 @@ export function buildFileMenuItemsSpec(
 export async function showFileContextMenu(handlers: FileContextMenuHandlers): Promise<void> {
   const spec = buildFileMenuItemsSpec(handlers);
 
-  const items = await Promise.all(
-    spec.map(async (entry) => {
-      if (entry.kind === "separator") {
-        return PredefinedMenuItem.new({ item: "Separator" });
-      }
-      return MenuItem.new({
-        id: entry.id,
-        text: entry.text,
-        action: entry.action,
-      });
-    }),
-  );
+  async function buildMenuItems(
+    menuSpec: FileMenuItemSpec[],
+  ): Promise<Array<MenuItem | PredefinedMenuItem | Submenu>> {
+    return Promise.all(
+      menuSpec.map(async (entry) => {
+        if (entry.kind === "separator") {
+          return PredefinedMenuItem.new({ item: "Separator" });
+        }
+        if (entry.kind === "submenu") {
+          return Submenu.new({ text: entry.text, items: await buildMenuItems(entry.items) });
+        }
+        return MenuItem.new({
+          id: entry.id,
+          text: entry.text,
+          action: entry.action,
+        });
+      }),
+    );
+  }
+
+  const items = await buildMenuItems(spec);
 
   const menu = await Menu.new({ items });
   await menu.popup();

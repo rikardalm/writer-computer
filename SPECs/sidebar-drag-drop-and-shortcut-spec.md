@@ -13,6 +13,7 @@
 - Closed folders expand after a short drag-hover delay.
 - Accepted drop targets show an accent outline instead of relying only on a subtle row background.
 - Files and folders can be dragged onto blank space in the Everything tree to move to the workspace root.
+- Files and folders also expose a `Move to` context-menu submenu that lists the workspace root and valid destination folders.
 - Moves reuse the existing `renameEntry` IPC path, with no overwrite on conflicts.
 - Folder moves rewrite open editor paths, expanded directory paths, and pinned paths through the same rename helpers used by folder rename.
 - `Cmd+B` toggles the sidebar only when focus is outside editable text. CodeMirror keeps ownership of `Cmd+B` while the editor is focused.

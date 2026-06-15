@@ -48,6 +48,12 @@ function getExtension(name: string): string {
   return name.slice(dot);
 }
 
+interface MoveDestinationOption {
+  id: string;
+  text: string;
+  path: string;
+}
+
 async function resolveUniqueName(
   parentPath: string,
   baseName: string,
@@ -62,6 +68,50 @@ async function resolveUniqueName(
   }
 
   throw new Error(`Could not find an available name for "${baseName}" in ${parentPath}`);
+}
+
+async function readFolderDestinations(
+  rootPath: string,
+  source: DirEntry,
+): Promise<MoveDestinationOption[]> {
+  const destinations: MoveDestinationOption[] = [];
+  const sourceParent = getParentDir(source.path);
+
+  function canMoveTo(path: string) {
+    if (path === sourceParent) return false;
+    if (path === source.path) return false;
+    if (source.is_dir && path.startsWith(`${source.path}/`)) return false;
+    return true;
+  }
+
+  if (canMoveTo(rootPath)) {
+    destinations.push({ id: "root", text: "Workspace root", path: rootPath });
+  }
+
+  async function visit(dirPath: string) {
+    let children: DirEntry[];
+    try {
+      children = await tauri.readDirectory(dirPath);
+    } catch {
+      return;
+    }
+
+    for (const child of children) {
+      if (!child.is_dir) continue;
+      if (canMoveTo(child.path)) {
+        destinations.push({
+          id: String(destinations.length),
+          text: getRelativePath(child.path, rootPath),
+          path: child.path,
+        });
+      }
+      if (source.is_dir && child.path === source.path) continue;
+      await visit(child.path);
+    }
+  }
+
+  await visit(rootPath);
+  return destinations;
 }
 
 export function FileTree({ rootPath }: FileTreeProps) {
@@ -376,79 +426,105 @@ export function FileTree({ rootPath }: FileTreeProps) {
     setDropTargetDepth(null);
   }, []);
 
+  const buildMoveDestinations = useCallback(
+    async (entry: DirEntry) => {
+      const destinations = await readFolderDestinations(rootPath, entry);
+      return destinations.map((destination) => ({
+        id: destination.id,
+        text: destination.text,
+        action: () => {
+          void moveEntry(entry, destination.path);
+        },
+      }));
+    },
+    [moveEntry, rootPath],
+  );
+
   const handleFileContextMenu = useCallback(
     (entry: DirEntry) => {
       const parent = getParentDir(entry.path);
       const relative = workspaceRoot ? getRelativePath(entry.path, workspaceRoot) : entry.path;
 
-      void showFileContextMenu({
-        isPinned: pinnedFiles.includes(entry.path),
-        onOpen: () => {
-          void openFile(entry.path);
-        },
-        onOpenInNewTab: () => {
-          void openFileInNewTabAction(entry.path).catch((error: unknown) => {
-            window.alert(
-              `Failed to open in new tab: ${error instanceof Error ? error.message : String(error)}`,
-            );
-          });
-        },
-        onDuplicate: () => {
-          void (async () => {
-            try {
-              const newPath = await duplicateFile(entry.path);
-              await refreshDirectory(parent);
-              await openFileInNewTabAction(newPath);
-            } catch (error) {
+      void (async () => {
+        const moveDestinations = await buildMoveDestinations(entry);
+        await showFileContextMenu({
+          isPinned: pinnedFiles.includes(entry.path),
+          onOpen: () => {
+            void openFile(entry.path);
+          },
+          onOpenInNewTab: () => {
+            void openFileInNewTabAction(entry.path).catch((error: unknown) => {
               window.alert(
-                `Failed to duplicate: ${error instanceof Error ? error.message : String(error)}`,
+                `Failed to open in new tab: ${error instanceof Error ? error.message : String(error)}`,
               );
-            }
-          })();
-        },
-        onTogglePin: () => {
-          togglePinnedFile(entry.path);
-        },
-        onCopyRelativePath: () => {
-          void writeText(relative);
-        },
-        onCopyAbsolutePath: () => {
-          void writeText(entry.path);
-        },
-        onReveal: () => {
-          void tauri.revealInFileManager(entry.path).catch((error: unknown) => {
-            window.alert(
-              `Failed to reveal: ${error instanceof Error ? error.message : String(error)}`,
-            );
-          });
-        },
-        onRename: () => {
-          setRenamingPath(entry.path);
-        },
-        onDelete: () => {
-          void (async () => {
-            const openFileState = getOpenFile(entry.path);
-            if (openFileState?.isDirty) {
-              const confirmed = window.confirm(
-                `"${entry.name}" has unsaved changes. Delete anyway?`,
-              );
-              if (!confirmed) return;
-            }
-            try {
-              await tauri.deleteEntry(entry.path);
-              removePathReferences(entry.path);
-              removePinnedFile(entry.path);
-              await refreshDirectory(parent);
-            } catch (error) {
+            });
+          },
+          onDuplicate: () => {
+            void (async () => {
+              try {
+                const newPath = await duplicateFile(entry.path);
+                await refreshDirectory(parent);
+                await openFileInNewTabAction(newPath);
+              } catch (error) {
+                window.alert(
+                  `Failed to duplicate: ${error instanceof Error ? error.message : String(error)}`,
+                );
+              }
+            })();
+          },
+          moveDestinations,
+          onTogglePin: () => {
+            togglePinnedFile(entry.path);
+          },
+          onCopyRelativePath: () => {
+            void writeText(relative);
+          },
+          onCopyAbsolutePath: () => {
+            void writeText(entry.path);
+          },
+          onReveal: () => {
+            void tauri.revealInFileManager(entry.path).catch((error: unknown) => {
               window.alert(
-                `Failed to delete: ${error instanceof Error ? error.message : String(error)}`,
+                `Failed to reveal: ${error instanceof Error ? error.message : String(error)}`,
               );
-            }
-          })();
-        },
-      });
+            });
+          },
+          onRename: () => {
+            setRenamingPath(entry.path);
+          },
+          onDelete: () => {
+            void (async () => {
+              const openFileState = getOpenFile(entry.path);
+              if (openFileState?.isDirty) {
+                const confirmed = window.confirm(
+                  `"${entry.name}" has unsaved changes. Delete anyway?`,
+                );
+                if (!confirmed) return;
+              }
+              try {
+                await tauri.deleteEntry(entry.path);
+                removePathReferences(entry.path);
+                removePinnedFile(entry.path);
+                await refreshDirectory(parent);
+              } catch (error) {
+                window.alert(
+                  `Failed to delete: ${error instanceof Error ? error.message : String(error)}`,
+                );
+              }
+            })();
+          },
+        });
+      })();
     },
-    [openFile, pinnedFiles, refreshDirectory, removePinnedFile, togglePinnedFile, workspaceRoot],
+    [
+      buildMoveDestinations,
+      openFile,
+      pinnedFiles,
+      refreshDirectory,
+      removePinnedFile,
+      togglePinnedFile,
+      workspaceRoot,
+    ],
   );
 
   const handleFolderContextMenu = useCallback(
@@ -456,97 +532,102 @@ export function FileTree({ rootPath }: FileTreeProps) {
       const parent = getParentDir(entry.path);
       const relative = workspaceRoot ? getRelativePath(entry.path, workspaceRoot) : entry.path;
 
-      void showFolderContextMenu({
-        onNewFile: () => {
-          void (async () => {
-            try {
-              const filePath = await resolveUniqueName(entry.path, "Untitled", ".md");
-              await tauri.createFile(filePath);
-              // Expand the folder so the new file is visible
-              if (!expandedDirs.has(entry.path)) {
-                await toggleDirectory(entry.path);
-              } else {
-                await refreshDirectory(entry.path);
+      void (async () => {
+        const moveDestinations = await buildMoveDestinations(entry);
+        await showFolderContextMenu({
+          onNewFile: () => {
+            void (async () => {
+              try {
+                const filePath = await resolveUniqueName(entry.path, "Untitled", ".md");
+                await tauri.createFile(filePath);
+                // Expand the folder so the new file is visible
+                if (!expandedDirs.has(entry.path)) {
+                  await toggleDirectory(entry.path);
+                } else {
+                  await refreshDirectory(entry.path);
+                }
+                setRenamingPath(filePath);
+              } catch (error) {
+                window.alert(
+                  `Failed to create file: ${error instanceof Error ? error.message : String(error)}`,
+                );
               }
-              setRenamingPath(filePath);
-            } catch (error) {
+            })();
+          },
+          onNewFolder: () => {
+            void (async () => {
+              try {
+                const folderPath = await resolveUniqueName(entry.path, "Untitled Folder", "");
+                const folderEntry = await tauri.createDirectory(folderPath);
+                // Expand the parent folder so the new folder is visible
+                if (!expandedDirs.has(entry.path)) {
+                  await toggleDirectory(entry.path);
+                } else {
+                  await refreshDirectory(entry.path);
+                }
+                upsertDirectoryEntry(entry.path, folderEntry);
+                setRenamingPath(folderPath);
+              } catch (error) {
+                window.alert(
+                  `Failed to create folder: ${error instanceof Error ? error.message : String(error)}`,
+                );
+              }
+            })();
+          },
+          moveDestinations,
+          onCopyRelativePath: () => {
+            void writeText(relative);
+          },
+          onCopyAbsolutePath: () => {
+            void writeText(entry.path);
+          },
+          onReveal: () => {
+            void tauri.revealInFileManager(entry.path).catch((error: unknown) => {
               window.alert(
-                `Failed to create file: ${error instanceof Error ? error.message : String(error)}`,
+                `Failed to reveal: ${error instanceof Error ? error.message : String(error)}`,
               );
-            }
-          })();
-        },
-        onNewFolder: () => {
-          void (async () => {
-            try {
-              const folderPath = await resolveUniqueName(entry.path, "Untitled Folder", "");
-              const folderEntry = await tauri.createDirectory(folderPath);
-              // Expand the parent folder so the new folder is visible
-              if (!expandedDirs.has(entry.path)) {
-                await toggleDirectory(entry.path);
-              } else {
-                await refreshDirectory(entry.path);
+            });
+          },
+          onRename: () => {
+            setRenamingPath(entry.path);
+          },
+          onDelete: () => {
+            void (async () => {
+              // Check if any open files inside this folder are dirty
+              const openFiles = getOpenFiles();
+              const dirPrefix = `${entry.path}/`;
+              let dirtyCount = 0;
+              for (const [path, file] of openFiles) {
+                if (path.startsWith(dirPrefix) && file.isDirty) {
+                  dirtyCount += 1;
+                }
               }
-              upsertDirectoryEntry(entry.path, folderEntry);
-              setRenamingPath(folderPath);
-            } catch (error) {
-              window.alert(
-                `Failed to create folder: ${error instanceof Error ? error.message : String(error)}`,
-              );
-            }
-          })();
-        },
-        onCopyRelativePath: () => {
-          void writeText(relative);
-        },
-        onCopyAbsolutePath: () => {
-          void writeText(entry.path);
-        },
-        onReveal: () => {
-          void tauri.revealInFileManager(entry.path).catch((error: unknown) => {
-            window.alert(
-              `Failed to reveal: ${error instanceof Error ? error.message : String(error)}`,
-            );
-          });
-        },
-        onRename: () => {
-          setRenamingPath(entry.path);
-        },
-        onDelete: () => {
-          void (async () => {
-            // Check if any open files inside this folder are dirty
-            const openFiles = getOpenFiles();
-            const dirPrefix = `${entry.path}/`;
-            let dirtyCount = 0;
-            for (const [path, file] of openFiles) {
-              if (path.startsWith(dirPrefix) && file.isDirty) {
-                dirtyCount += 1;
-              }
-            }
 
-            if (dirtyCount > 0) {
-              const confirmed = window.confirm(
-                `"${entry.name}" contains ${dirtyCount} unsaved file${dirtyCount > 1 ? "s" : ""}. Delete anyway?`,
-              );
-              if (!confirmed) return;
-            }
+              if (dirtyCount > 0) {
+                const confirmed = window.confirm(
+                  `"${entry.name}" contains ${dirtyCount} unsaved file${dirtyCount > 1 ? "s" : ""}. Delete anyway?`,
+                );
+                if (!confirmed) return;
+              }
 
-            try {
-              await tauri.deleteEntry(entry.path);
-              removePathsWithPrefix(entry.path);
-              removePinnedFilesWithPrefix(entry.path);
-              invalidatePath(entry.path);
-              await refreshDirectory(parent);
-            } catch (error) {
-              window.alert(
-                `Failed to delete: ${error instanceof Error ? error.message : String(error)}`,
-              );
-            }
-          })();
-        },
-      });
+              try {
+                await tauri.deleteEntry(entry.path);
+                removePathsWithPrefix(entry.path);
+                removePinnedFilesWithPrefix(entry.path);
+                invalidatePath(entry.path);
+                await refreshDirectory(parent);
+              } catch (error) {
+                window.alert(
+                  `Failed to delete: ${error instanceof Error ? error.message : String(error)}`,
+                );
+              }
+            })();
+          },
+        });
+      })();
     },
     [
+      buildMoveDestinations,
       expandedDirs,
       invalidatePath,
       refreshDirectory,
