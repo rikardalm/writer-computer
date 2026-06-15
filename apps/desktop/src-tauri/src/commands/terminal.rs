@@ -60,6 +60,7 @@ pub fn terminal_start(
         .map_err(|e| AppError::Io(e.to_string()))?;
 
     let mut cmd = CommandBuilder::new(default_shell());
+    cmd.arg("-l");
     cmd.cwd(workspace);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");

@@ -1,9 +1,9 @@
 {
-  "accent": "#58A6FF",
-  "background": "#0D1117",
-  "foreground": "#C9D1D9",
+  "accent": "#539BF5",
+  "background": "#22272E",
+  "foreground": "#ADBAC7",
   "ui-font": "-apple-system-body, ui-sans-serif, -apple-system, system-ui, \"Segoe UI\", Helvetica, \"Apple Color Emoji\", Arial, sans-serif, \"Segoe UI Emoji\", \"Segoe UI Symbol\"",
   "editor-font": "-apple-system-body, ui-sans-serif, -apple-system, system-ui, \"Segoe UI\", Helvetica, \"Apple Color Emoji\", Arial, sans-serif, \"Segoe UI Emoji\", \"Segoe UI Symbol\"",
   "translucent": 0,
-  "contrast": 55
+  "contrast": 48
 }

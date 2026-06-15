@@ -3,6 +3,16 @@ import * as tauri from "@/lib/tauri";
 import { applyCssVarBindings, applyTheme } from "@/lib/theme";
 import type { SettingsMap, SettingKey } from "@/lib/settings-schema";
 
+const WRITER_DARK_DIMMED = {
+  "theme.dark.accent": "#539BF5",
+  "theme.dark.background": "#22272E",
+  "theme.dark.foreground": "#ADBAC7",
+  "theme.dark.translucent": 0,
+  "theme.dark.contrast": 48,
+} as const;
+
+const LEGACY_WRITER_DARK_BACKGROUNDS = new Set(["#111111", "#0d1117"]);
+
 interface SettingsState {
   /** Flat record from key → value. Stored as `Record<string, unknown>` since
    *  IPC returns untyped JSON; per-key reads should go through the typed
@@ -28,14 +38,40 @@ function applySettingsSideEffects(settings: Record<string, unknown>) {
   applyCssVarBindings(settings);
 }
 
+function migrateLegacyWriterDark(settings: Record<string, unknown>) {
+  const preset = settings["theme.dark.preset"];
+  if (preset !== "Writer") return { settings, changed: [] as string[] };
+
+  const background = settings["theme.dark.background"];
+  if (
+    typeof background !== "string" ||
+    !LEGACY_WRITER_DARK_BACKGROUNDS.has(background.toLowerCase())
+  ) {
+    return { settings, changed: [] as string[] };
+  }
+
+  return {
+    settings: { ...settings, ...WRITER_DARK_DIMMED },
+    changed: Object.keys(WRITER_DARK_DIMMED),
+  };
+}
+
+function persistMigratedSettings(keys: string[], settings: Record<string, unknown>) {
+  for (const key of keys) {
+    void tauri.setSetting(key, settings[key], "global");
+  }
+}
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: {},
   isLoaded: false,
 
   loadSettings: async () => {
-    const settings = await tauri.getSettings();
+    const loaded = await tauri.getSettings();
+    const { settings, changed } = migrateLegacyWriterDark(loaded);
     set({ settings, isLoaded: true });
     applySettingsSideEffects(settings);
+    persistMigratedSettings(changed, settings);
   },
 
   getSetting: <K extends SettingKey>(key: K): SettingsMap[K] | undefined => {
@@ -69,8 +105,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   hydrateFromBackend: ({ settings }) => {
+    const migrated = migrateLegacyWriterDark(settings);
+    settings = migrated.settings;
     set({ settings, isLoaded: true });
     applySettingsSideEffects(settings);
+    persistMigratedSettings(migrated.changed, settings);
   },
 }));
 

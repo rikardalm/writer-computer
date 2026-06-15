@@ -163,7 +163,7 @@
       "category": "Theme",
       "type": "color",
       "cssVar": "--accent",
-      "default": "#58A6FF"
+      "default": "#539BF5"
     },
     {
       "key": "theme.dark.background",
@@ -172,7 +172,7 @@
       "category": "Theme",
       "type": "color",
       "cssVar": "--bg-base",
-      "default": "#0D1117"
+      "default": "#22272E"
     },
     {
       "key": "theme.dark.foreground",
@@ -181,7 +181,7 @@
       "category": "Theme",
       "type": "color",
       "cssVar": "--fg-base",
-      "default": "#C9D1D9"
+      "default": "#ADBAC7"
     },
     {
       "key": "theme.dark.ui-font",
@@ -221,7 +221,7 @@
       "min": 0,
       "max": 100,
       "step": 1,
-      "default": 55
+      "default": 48
     },
     {
       "key": "files.associations",

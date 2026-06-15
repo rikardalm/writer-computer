@@ -2,7 +2,8 @@
 
 ## 2026-06-15
 
-- Switch the bundled Writer dark theme to a GitHub Dark-inspired palette.
+- Switch the bundled Writer dark theme to a readable GitHub Dark Dimmed-inspired palette, and migrate older stored Writer dark values to the new palette on startup.
+- Start embedded terminal sessions as login shells so user zsh profile/PATH setup is available.
 - Move the embedded terminal to a resizable right-side panel, and keep its shell session alive when the panel is hidden with `Cmd+J` or the terminal toggle.
 - Add an embedded terminal panel to the desktop app. `Cmd+J` toggles a terminal rooted at the current workspace, backed by a real PTY session with resize, input/output streaming, and cleanup when the app window closes.
 
