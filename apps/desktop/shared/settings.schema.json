@@ -163,7 +163,7 @@
       "category": "Theme",
       "type": "color",
       "cssVar": "--accent",
-      "default": "#FF6A00"
+      "default": "#58A6FF"
     },
     {
       "key": "theme.dark.background",
@@ -172,7 +172,7 @@
       "category": "Theme",
       "type": "color",
       "cssVar": "--bg-base",
-      "default": "#111111"
+      "default": "#0D1117"
     },
     {
       "key": "theme.dark.foreground",
@@ -181,7 +181,7 @@
       "category": "Theme",
       "type": "color",
       "cssVar": "--fg-base",
-      "default": "#FCFCFC"
+      "default": "#C9D1D9"
     },
     {
       "key": "theme.dark.ui-font",
@@ -210,7 +210,7 @@
       "min": 0,
       "max": 100,
       "step": 1,
-      "default": 20
+      "default": 0
     },
     {
       "key": "theme.dark.contrast",
@@ -221,7 +221,7 @@
       "min": 0,
       "max": 100,
       "step": 1,
-      "default": 16
+      "default": 55
     },
     {
       "key": "files.associations",

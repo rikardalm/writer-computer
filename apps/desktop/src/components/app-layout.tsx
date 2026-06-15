@@ -22,9 +22,9 @@ export function AppLayout() {
   const [draftSidebarWidth, setDraftSidebarWidth] = useState(() =>
     clampSidebarWidth(sidebarWidth, maxSidebarWidth),
   );
-  const [terminalHeight, setTerminalHeight] = useState(240);
+  const [terminalWidth, setTerminalWidth] = useState(360);
   const draftSidebarWidthRef = useRef(draftSidebarWidth);
-  const terminalHeightRef = useRef(terminalHeight);
+  const terminalWidthRef = useRef(terminalWidth);
   const tabChromeLeft = isSidebarCollapsed ? 132 : draftSidebarWidth + 12;
 
   const setClampedSidebarWidth = useCallback(
@@ -108,12 +108,12 @@ export function AppLayout() {
     if (event.button !== 0) return;
 
     event.preventDefault();
-    const startY = event.clientY;
-    const startHeight = terminalHeightRef.current;
+    const startX = event.clientX;
+    const startWidth = terminalWidthRef.current;
     const previousCursor = document.documentElement.style.cursor;
     const previousUserSelect = document.body.style.userSelect;
 
-    document.documentElement.style.cursor = "row-resize";
+    document.documentElement.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
 
     const cleanup = () => {
@@ -124,15 +124,15 @@ export function AppLayout() {
       document.body.style.userSelect = previousUserSelect;
     };
 
-    const setNextHeight = (nextHeight: number) => {
-      const maxHeight = Math.max(180, Math.floor(window.innerHeight * 0.7));
-      const next = Math.max(140, Math.min(maxHeight, Math.round(nextHeight)));
-      terminalHeightRef.current = next;
-      setTerminalHeight(next);
+    const setNextWidth = (nextWidth: number) => {
+      const maxWidth = Math.max(300, Math.floor(window.innerWidth * 0.55));
+      const next = Math.max(260, Math.min(maxWidth, Math.round(nextWidth)));
+      terminalWidthRef.current = next;
+      setTerminalWidth(next);
     };
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
-      setNextHeight(startHeight + startY - moveEvent.clientY);
+      setNextWidth(startWidth + startX - moveEvent.clientX);
     };
 
     const handlePointerUp = () => cleanup();
@@ -197,13 +197,13 @@ export function AppLayout() {
             />
           )}
 
-          <div className="relative flex min-w-0 flex-1 flex-col bg-bg">
+          <div className="relative flex min-w-0 flex-1 bg-bg">
             <div className="relative min-h-0 flex-1">
               <EditorArea />
             </div>
             <TerminalPanel
               isOpen={isTerminalOpen}
-              height={terminalHeight}
+              width={terminalWidth}
               onClose={closeTerminal}
               onResizeStart={handleTerminalResizeStart}
             />

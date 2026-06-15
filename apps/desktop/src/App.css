@@ -30,17 +30,17 @@
 :root {
   /* Primary tokens — pushed by JS via applyThemeTokens(). Defaults below are
      last-resort fallbacks for the brief window before settings hydrate. */
-  --accent: #ff6a00;
-  --bg-base: #111111;
-  --fg-base: #fcfcfc;
+  --accent: #58a6ff;
+  --bg-base: #0d1117;
+  --fg-base: #c9d1d9;
   --ui-font:
     -apple-system-body, ui-sans-serif, -apple-system, system-ui, "Segoe UI", Helvetica,
     "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol";
   --editor-font:
     -apple-system-body, ui-sans-serif, -apple-system, system-ui, "Segoe UI", Helvetica,
     "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol";
-  --bg-opacity: 0.715;
-  --contrast: 0.328;
+  --bg-opacity: 1;
+  --contrast: 1.1;
 
   /* Derived background — applied once on body. Editor and settings pages
      don't add their own bg layer; doing so would multiply opacity and break

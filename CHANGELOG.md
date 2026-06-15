@@ -2,7 +2,9 @@
 
 ## 2026-06-15
 
-- Add an embedded terminal panel to the desktop app. `Cmd+J` toggles a resizable bottom terminal rooted at the current workspace, backed by a real PTY session with resize, input/output streaming, and cleanup when the panel or window closes.
+- Switch the bundled Writer dark theme to a GitHub Dark-inspired palette.
+- Move the embedded terminal to a resizable right-side panel, and keep its shell session alive when the panel is hidden with `Cmd+J` or the terminal toggle.
+- Add an embedded terminal panel to the desktop app. `Cmd+J` toggles a terminal rooted at the current workspace, backed by a real PTY session with resize, input/output streaming, and cleanup when the app window closes.
 
 ## 2026-06-05
 

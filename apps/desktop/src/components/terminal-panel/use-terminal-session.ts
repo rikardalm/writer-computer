@@ -20,6 +20,7 @@ export function useTerminalSession(isOpen: boolean) {
   const sessionIdRef = useRef<string | null>(null);
   const terminalElementRef = useRef<HTMLDivElement | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const cleanupRef = useRef<(() => void) | null>(null);
   const [status, setStatus] = useState<"idle" | "starting" | "running" | "exited" | "error">(
     "idle",
   );
@@ -45,9 +46,13 @@ export function useTerminalSession(isOpen: boolean) {
 
   const setTerminalElement = useCallback(
     (element: HTMLDivElement | null) => {
+      if (terminalElementRef.current && resizeObserverRef.current) {
+        resizeObserverRef.current.unobserve(terminalElementRef.current);
+      }
       terminalElementRef.current = element;
       if (element && terminalRef.current) {
         terminalRef.current.open(element);
+        resizeObserverRef.current?.observe(element);
         fitAndResize();
       }
     },
@@ -135,7 +140,7 @@ export function useTerminalSession(isOpen: boolean) {
 
     void start();
 
-    return () => {
+    cleanupRef.current = () => {
       cancelled = true;
       unlistenOutput?.();
       unlistenExit?.();
@@ -151,6 +156,19 @@ export function useTerminalSession(isOpen: boolean) {
       setStatus("idle");
     };
   }, [fitAndResize, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !terminalRef.current) return;
+    fitAndResize();
+    terminalRef.current.focus();
+  }, [fitAndResize, isOpen]);
+
+  useEffect(
+    () => () => {
+      cleanupRef.current?.();
+    },
+    [],
+  );
 
   return { setTerminalElement, status };
 }
