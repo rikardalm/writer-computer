@@ -6,6 +6,7 @@
 
 ## Done
 
+- Terminal and sidebar polish: [`SPECs/terminal-sidebar-polish-spec.md`](SPECs/terminal-sidebar-polish-spec.md) — open the right-side terminal at a wider viewport-relative default and add root-level New File/New Folder actions when right-clicking blank space in the sidebar tree.
 - Embedded terminal: [`SPECs/embedded-terminal-spec.md`](SPECs/embedded-terminal-spec.md) — add a workspace-root integrated terminal panel to the desktop app so shell commands can run without switching to an external terminal.
 - Website TanStack Start refactor: [`SPECs/website-tanstack-start-refactor-spec.md`](SPECs/website-tanstack-start-refactor-spec.md) — move the marketing website from a plain Vite SPA to TanStack Start routing/document/build structure while preserving the static Cloudflare deployment path.
 - Floating card shadow polish — add a large subtle shadow to the shared command-palette/popover card surface.

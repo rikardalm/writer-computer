@@ -206,7 +206,7 @@ export function FileBrowser() {
       </div>
 
       <ScrollFade className="min-h-0 flex-1 overflow-y-scroll scrollbar-none">
-        <div className="flex flex-col gap-4 py-2">
+        <div className="flex min-h-full flex-col gap-4 py-2">
           {pinnedEntries.files.length > 0 && (
             <SidebarSection title="Pinned">
               <div role="tree" aria-label="Pinned files" className="flex flex-col gap-px">
@@ -263,7 +263,7 @@ export function FileBrowser() {
             </SidebarSection>
           )}
 
-          <SidebarSection title="Everything">
+          <SidebarSection title="Everything" className="min-h-0 flex-1">
             <FileTree rootPath={root} />
           </SidebarSection>
         </div>

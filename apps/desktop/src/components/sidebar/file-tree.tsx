@@ -31,6 +31,7 @@ import { duplicateFile } from "./duplicate-file";
 import { FileTreeNode } from "./file-tree-node";
 import { showFileContextMenu } from "./file-context-menu";
 import { showFolderContextMenu } from "./folder-context-menu";
+import { showRootContextMenu } from "./root-context-menu";
 import { showBulkContextMenu } from "./bulk-context-menu";
 import { flattenTree } from "./flatten-tree";
 import { useAutoRefresh } from "./use-auto-refresh";
@@ -391,6 +392,48 @@ export function FileTree({ rootPath }: FileTreeProps) {
     ],
   );
 
+  const handleRootContextMenu = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (event.target !== event.currentTarget) return;
+      event.preventDefault();
+
+      setSelectedPaths(new Set());
+      setSelectionAnchor(null);
+
+      void showRootContextMenu({
+        onNewFile: () => {
+          void (async () => {
+            try {
+              const filePath = await resolveUniqueName(rootPath, "Untitled", ".md");
+              await tauri.createFile(filePath);
+              await refreshDirectory(rootPath);
+              setRenamingPath(filePath);
+            } catch (error) {
+              window.alert(
+                `Failed to create file: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
+          })();
+        },
+        onNewFolder: () => {
+          void (async () => {
+            try {
+              const folderPath = await resolveUniqueName(rootPath, "Untitled Folder", "");
+              await tauri.createDirectory(folderPath);
+              await refreshDirectory(rootPath);
+              setRenamingPath(folderPath);
+            } catch (error) {
+              window.alert(
+                `Failed to create folder: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
+          })();
+        },
+      });
+    },
+    [refreshDirectory, rootPath],
+  );
+
   const handleBulkContextMenu = useCallback(
     (paths: Set<string>) => {
       const pathArray = [...paths];
@@ -478,11 +521,23 @@ export function FileTree({ rootPath }: FileTreeProps) {
   );
 
   if (flatItems.length === 0) {
-    return <div className="px-2 text-[13px] text-[var(--text-muted)]">No files</div>;
+    return (
+      <div
+        className="min-h-16 flex-1 px-2 text-[13px] text-[var(--text-muted)]"
+        onContextMenu={handleRootContextMenu}
+      >
+        No files
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-px" role="tree" aria-label="File tree">
+    <div
+      className="flex min-h-16 flex-1 flex-col gap-px"
+      role="tree"
+      aria-label="File tree"
+      onContextMenu={handleRootContextMenu}
+    >
       {flatItems.map((item) => (
         <FileTreeNode
           key={item.entry.path}

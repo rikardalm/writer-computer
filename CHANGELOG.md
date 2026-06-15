@@ -2,6 +2,8 @@
 
 ## 2026-06-15
 
+- Open the right-side embedded terminal at a wider viewport-relative default, and allow it to be resized wider.
+- Add root-level New File and New Folder actions when right-clicking blank space in the sidebar file tree.
 - Switch the bundled Writer dark theme to a readable GitHub Dark Dimmed-inspired palette, and migrate older stored Writer dark values to the new palette on startup.
 - Start embedded terminal sessions as login shells so user zsh profile/PATH setup is available.
 - Apply the GitHub Dark Dimmed palette directly to the embedded terminal viewport and ANSI colors so terminal text stays readable.

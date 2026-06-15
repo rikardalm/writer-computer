@@ -12,6 +12,12 @@ function clampSidebarWidth(width: number, maxSidebarWidth: number) {
   return Math.max(220, Math.min(maxSidebarWidth, Math.round(width)));
 }
 
+function getDefaultTerminalWidth() {
+  const viewportWidth = typeof window === "undefined" ? 1200 : window.innerWidth;
+  const maxWidth = Math.max(520, Math.floor(viewportWidth * 0.65));
+  return Math.max(420, Math.min(maxWidth, Math.round(viewportWidth * 0.56)));
+}
+
 export function AppLayout() {
   const { isSidebarCollapsed, sidebarWidth, setSidebarWidth } = useSidebar();
   const { isOpen: isTerminalOpen, close: closeTerminal } = useTerminalPanel();
@@ -22,7 +28,7 @@ export function AppLayout() {
   const [draftSidebarWidth, setDraftSidebarWidth] = useState(() =>
     clampSidebarWidth(sidebarWidth, maxSidebarWidth),
   );
-  const [terminalWidth, setTerminalWidth] = useState(360);
+  const [terminalWidth, setTerminalWidth] = useState(getDefaultTerminalWidth);
   const draftSidebarWidthRef = useRef(draftSidebarWidth);
   const terminalWidthRef = useRef(terminalWidth);
   const tabChromeLeft = isSidebarCollapsed ? 132 : draftSidebarWidth + 12;
@@ -125,7 +131,7 @@ export function AppLayout() {
     };
 
     const setNextWidth = (nextWidth: number) => {
-      const maxWidth = Math.max(300, Math.floor(window.innerWidth * 0.55));
+      const maxWidth = Math.max(520, Math.floor(window.innerWidth * 0.65));
       const next = Math.max(260, Math.min(maxWidth, Math.round(nextWidth)));
       terminalWidthRef.current = next;
       setTerminalWidth(next);

@@ -3,13 +3,14 @@ import { useState, type ReactNode } from "react";
 interface SidebarSectionProps {
   title: string;
   children: ReactNode;
+  className?: string;
 }
 
-export function SidebarSection({ title, children }: SidebarSectionProps) {
+export function SidebarSection({ title, children, className = "" }: SidebarSectionProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <section className="flex flex-col gap-1" aria-label={title}>
+    <section className={`flex flex-col gap-1 ${className}`} aria-label={title}>
       <button
         type="button"
         aria-expanded={!isCollapsed}
