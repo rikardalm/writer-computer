@@ -464,6 +464,10 @@ pub fn run() {
             commands::settings::set_setting,
             commands::settings::reset_setting,
             commands::startup::get_startup_state,
+            commands::terminal::terminal_start,
+            commands::terminal::terminal_write,
+            commands::terminal::terminal_resize,
+            commands::terminal::terminal_stop,
             #[cfg(target_os = "macos")]
             commands::shell_install::cli_status,
             #[cfg(target_os = "macos")]

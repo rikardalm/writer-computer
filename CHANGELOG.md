@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-06-15
+
+- Add an embedded terminal panel to the desktop app. `Cmd+J` toggles a resizable bottom terminal rooted at the current workspace, backed by a real PTY session with resize, input/output streaming, and cleanup when the panel or window closes.
+
 ## 2026-06-05
 
 - Refactor the marketing website from a plain Vite React app to TanStack Start. The homepage now lives in Start file routes with a root document for metadata, favicon, stylesheet, and analytics script handling; the build prerenders `/` into `apps/website/dist/client` for the existing Cloudflare static assets Worker.

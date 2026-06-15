@@ -3,6 +3,7 @@ import { useUIStore } from "@/stores/ui-store";
 import { useEditorStore } from "@/stores/editor-store";
 import { useWorkspaceStore } from "@/stores/workspace-store";
 import { toggleSidebar } from "@/hooks/use-sidebar";
+import { toggleTerminalPanel } from "@/hooks/use-terminal";
 
 function isEditableTargetFocused(): boolean {
   const active = document.activeElement;
@@ -63,6 +64,13 @@ export function useKeyboardShortcuts() {
       if (mod && e.key === "\\") {
         e.preventDefault();
         toggleSidebar();
+        return;
+      }
+
+      // Cmd+J — toggle terminal
+      if (mod && e.key === "j") {
+        e.preventDefault();
+        if (root) toggleTerminalPanel();
         return;
       }
 

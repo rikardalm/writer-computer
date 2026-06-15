@@ -6,6 +6,7 @@
 
 ## Done
 
+- Embedded terminal: [`SPECs/embedded-terminal-spec.md`](SPECs/embedded-terminal-spec.md) — add a workspace-root integrated terminal panel to the desktop app so shell commands can run without switching to an external terminal.
 - Website TanStack Start refactor: [`SPECs/website-tanstack-start-refactor-spec.md`](SPECs/website-tanstack-start-refactor-spec.md) — move the marketing website from a plain Vite SPA to TanStack Start routing/document/build structure while preserving the static Cloudflare deployment path.
 - Floating card shadow polish — add a large subtle shadow to the shared command-palette/popover card surface.
 - Sidebar sections redesign: [`SPECs/sidebar-sections-spec.md`](SPECs/sidebar-sections-spec.md) — split the sidebar into collapsible Pinned, Recents, and Everything sections; keep the existing file tree under Everything; add per-workspace pinned files and compact metadata-backed recent files with Show More pagination.

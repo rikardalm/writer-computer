@@ -4,6 +4,8 @@ import { EditorArea } from "./editor-area";
 import { EditorTabs } from "./editor-area/editor-tabs";
 import { SidebarToggleButton } from "./sidebar/sidebar-toggle-button";
 import { useSidebar } from "@/hooks/use-sidebar";
+import { useTerminalPanel } from "@/hooks/use-terminal";
+import { TerminalPanel } from "./terminal-panel";
 
 function clampSidebarWidth(width: number, maxSidebarWidth: number) {
   return Math.max(220, Math.min(maxSidebarWidth, Math.round(width)));
@@ -11,6 +13,7 @@ function clampSidebarWidth(width: number, maxSidebarWidth: number) {
 
 export function AppLayout() {
   const { isSidebarCollapsed, sidebarWidth, setSidebarWidth } = useSidebar();
+  const { isOpen: isTerminalOpen, close: closeTerminal } = useTerminalPanel();
   const viewportWidth = typeof window === "undefined" ? 1200 : window.innerWidth;
   const maxSidebarWidth = Math.max(280, Math.min(420, Math.floor(viewportWidth * 0.35)));
   const draggingRef = useRef(false);
@@ -18,7 +21,9 @@ export function AppLayout() {
   const [draftSidebarWidth, setDraftSidebarWidth] = useState(() =>
     clampSidebarWidth(sidebarWidth, maxSidebarWidth),
   );
+  const [terminalHeight, setTerminalHeight] = useState(240);
   const draftSidebarWidthRef = useRef(draftSidebarWidth);
+  const terminalHeightRef = useRef(terminalHeight);
   const tabChromeLeft = isSidebarCollapsed ? 132 : draftSidebarWidth + 12;
 
   const setClampedSidebarWidth = useCallback(
@@ -98,6 +103,45 @@ export function AppLayout() {
     [maxSidebarWidth, setClampedSidebarWidth, setSidebarWidth, sidebarWidth],
   );
 
+  const handleTerminalResizeStart = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+
+    event.preventDefault();
+    const startY = event.clientY;
+    const startHeight = terminalHeightRef.current;
+    const previousCursor = document.documentElement.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+
+    document.documentElement.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+
+    const cleanup = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerCancel);
+      document.documentElement.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+
+    const setNextHeight = (nextHeight: number) => {
+      const maxHeight = Math.max(180, Math.floor(window.innerHeight * 0.7));
+      const next = Math.max(140, Math.min(maxHeight, Math.round(nextHeight)));
+      terminalHeightRef.current = next;
+      setTerminalHeight(next);
+    };
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      setNextHeight(startHeight + startY - moveEvent.clientY);
+    };
+
+    const handlePointerUp = () => cleanup();
+    const handlePointerCancel = () => cleanup();
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerCancel);
+  }, []);
+
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-transparent text-text-primary">
       <div
@@ -149,8 +193,16 @@ export function AppLayout() {
             />
           )}
 
-          <div className="relative min-w-0 flex-1 bg-bg">
-            <EditorArea />
+          <div className="relative flex min-w-0 flex-1 flex-col bg-bg">
+            <div className="relative min-h-0 flex-1">
+              <EditorArea />
+            </div>
+            <TerminalPanel
+              isOpen={isTerminalOpen}
+              height={terminalHeight}
+              onClose={closeTerminal}
+              onResizeStart={handleTerminalResizeStart}
+            />
           </div>
         </div>
       </div>

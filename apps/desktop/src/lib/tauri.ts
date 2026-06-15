@@ -197,6 +197,41 @@ export function getStartupState(): Promise<StartupState> {
   return invoke("get_startup_state");
 }
 
+// Terminal commands
+export interface TerminalSize {
+  cols: number;
+  rows: number;
+}
+
+export interface TerminalSessionPayload {
+  id: string;
+}
+
+export interface TerminalOutputPayload {
+  id: string;
+  data: string;
+}
+
+export interface TerminalExitPayload {
+  id: string;
+}
+
+export function terminalStart(size: TerminalSize): Promise<TerminalSessionPayload> {
+  return invoke("terminal_start", { size });
+}
+
+export function terminalWrite(id: string, data: string): Promise<void> {
+  return invoke("terminal_write", { id, data });
+}
+
+export function terminalResize(id: string, size: TerminalSize): Promise<void> {
+  return invoke("terminal_resize", { id, size });
+}
+
+export function terminalStop(id: string): Promise<void> {
+  return invoke("terminal_stop", { id });
+}
+
 // Window commands
 export function showMainWindow(): Promise<void> {
   return getCurrentWindow().show();

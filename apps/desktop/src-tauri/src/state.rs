@@ -3,7 +3,9 @@ use crate::ignore::WorkspaceIgnore;
 use crate::open_target::PendingOpenPayload;
 use notify::RecommendedWatcher;
 use parking_lot::{Mutex, RwLock};
+use portable_pty::{Child, MasterPty};
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -195,6 +197,7 @@ pub struct AppState {
     /// two windows can't clobber each other's tab state under the 500 ms
     /// debounce. Held only for the load→save span.
     pub sessions_file_lock: Mutex<()>,
+    pub terminal_sessions: RwLock<HashMap<String, Arc<TerminalSession>>>,
 }
 
 impl AppState {
@@ -202,6 +205,7 @@ impl AppState {
         Self {
             windows: RwLock::new(HashMap::new()),
             sessions_file_lock: Mutex::new(()),
+            terminal_sessions: RwLock::new(HashMap::new()),
         }
     }
 
@@ -229,6 +233,7 @@ impl AppState {
     /// event handler so the watcher's `Drop` runs (stopping FSEvents /
     /// inotify subscriptions) and the index memory is reclaimed.
     pub fn remove(&self, label: &str) -> Option<Arc<WorkspaceState>> {
+        self.stop_terminal_sessions_for_window(label);
         self.windows.write().remove(label)
     }
 
@@ -259,6 +264,68 @@ impl AppState {
     /// broadcast-style events without hard-coding labels.
     pub fn labels(&self) -> Vec<String> {
         self.windows.read().keys().cloned().collect()
+    }
+
+    pub fn insert_terminal_session(&self, session: Arc<TerminalSession>) {
+        self.terminal_sessions
+            .write()
+            .insert(session.id.clone(), session);
+    }
+
+    pub fn terminal_session(&self, id: &str) -> Option<Arc<TerminalSession>> {
+        self.terminal_sessions.read().get(id).cloned()
+    }
+
+    pub fn remove_terminal_session(&self, id: &str) -> Option<Arc<TerminalSession>> {
+        self.terminal_sessions.write().remove(id)
+    }
+
+    pub fn stop_terminal_sessions_for_window(&self, label: &str) {
+        let sessions = {
+            let mut map = self.terminal_sessions.write();
+            let ids: Vec<String> = map
+                .iter()
+                .filter(|(_, session)| session.window_label == label)
+                .map(|(id, _)| id.clone())
+                .collect();
+            ids.into_iter()
+                .filter_map(|id| map.remove(&id))
+                .collect::<Vec<_>>()
+        };
+
+        for session in sessions {
+            session.kill();
+        }
+    }
+}
+
+pub struct TerminalSession {
+    pub id: String,
+    pub window_label: String,
+    pub master: Mutex<Box<dyn MasterPty + Send>>,
+    pub writer: Mutex<Box<dyn Write + Send>>,
+    child: Mutex<Box<dyn Child + Send + Sync>>,
+}
+
+impl TerminalSession {
+    pub fn new(
+        id: String,
+        window_label: String,
+        master: Box<dyn MasterPty + Send>,
+        writer: Box<dyn Write + Send>,
+        child: Box<dyn Child + Send + Sync>,
+    ) -> Self {
+        Self {
+            id,
+            window_label,
+            master: Mutex::new(master),
+            writer: Mutex::new(writer),
+            child: Mutex::new(child),
+        }
+    }
+
+    pub fn kill(&self) {
+        let _ = self.child.lock().kill();
     }
 }
 

@@ -159,13 +159,17 @@ body,
 }
 
 /* Prevent text selection everywhere except editor and form inputs */
-*:not(.cm-editor):not(.cm-content):not(.cm-line):not(textarea):not(input) {
+*:not(.cm-editor):not(.cm-content):not(.cm-line):not(.xterm):not(.xterm *):not(textarea):not(
+    input
+  ) {
   -webkit-user-select: none;
   user-select: none;
 }
 
 .cm-editor,
 .cm-editor *,
+.xterm,
+.xterm *,
 textarea,
 input {
   -webkit-user-select: text;
