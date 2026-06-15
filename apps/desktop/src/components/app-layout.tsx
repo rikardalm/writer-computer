@@ -3,7 +3,6 @@ import { Sidebar } from "./sidebar";
 import { EditorArea } from "./editor-area";
 import { EditorTabs } from "./editor-area/editor-tabs";
 import { SidebarToggleButton } from "./sidebar/sidebar-toggle-button";
-import { TerminalToggleButton } from "./terminal-panel/terminal-toggle-button";
 import { useSidebar } from "@/hooks/use-sidebar";
 import { useTerminalPanel } from "@/hooks/use-terminal";
 import { TerminalPanel } from "./terminal-panel";
@@ -191,19 +190,10 @@ export function AppLayout() {
         </div>
       </div>
       <div
-        className="pointer-events-auto absolute top-0 right-0 z-[60] flex items-center"
-        style={{
-          height: "calc(var(--chrome-control-height) + var(--chrome-control-padding) * 2)",
-          padding: "var(--chrome-control-padding) 10px",
-        }}
-      >
-        <TerminalToggleButton />
-      </div>
-      <div
         className="pointer-events-none absolute top-0 z-40"
         style={{
           left: tabChromeLeft,
-          right: 56,
+          right: 12,
           transition: isSidebarDragging ? "none" : "left 140ms ease-out",
         }}
       >

@@ -6,6 +6,7 @@
 
 ## Done
 
+- Remove terminal appbar button — keep terminal access out of the fixed top-right chrome while preserving shortcut/command toggle access.
 - Terminal appbar control polish — keep the terminal toggle as the rightmost appbar control and remove the terminal panel's duplicate close button.
 - Sidebar Move to context menu: [`SPECs/sidebar-drag-drop-and-shortcut-spec.md`](SPECs/sidebar-drag-drop-and-shortcut-spec.md) — add file/folder context-menu moves to valid destination folders and the workspace root.
 - Sidebar drag/drop feedback follow-up: [`SPECs/sidebar-drag-drop-and-shortcut-spec.md`](SPECs/sidebar-drag-drop-and-shortcut-spec.md) — make drag targets visibly respond across the tree and expand closed folders while dragging.
