@@ -13,6 +13,9 @@ import {
 import "@xterm/xterm/css/xterm.css";
 
 const FALLBACK_SIZE = { cols: 80, rows: 24 };
+const MIN_FIT_WIDTH = 160;
+const MIN_FIT_HEIGHT = 96;
+const PTY_RESIZE_DEBOUNCE_MS = 90;
 const GITHUB_DARK_DIMMED_TERMINAL_THEME = {
   background: "#22272E",
   foreground: "#ADBAC7",
@@ -44,15 +47,25 @@ export function useTerminalSession(isOpen: boolean) {
   const sessionIdRef = useRef<string | null>(null);
   const terminalElementRef = useRef<HTMLDivElement | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const resizeFrameRef = useRef<number | null>(null);
+  const ptyResizeTimerRef = useRef<number | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const [status, setStatus] = useState<"idle" | "starting" | "running" | "exited" | "error">(
     "idle",
   );
 
-  const fitAndResize = useCallback(() => {
+  const fitAndResize = useCallback((resizePty: "now" | "debounced" = "debounced") => {
     const terminal = terminalRef.current;
     const fitAddon = fitAddonRef.current;
+    const element = terminalElementRef.current;
     if (!terminal || !fitAddon) return FALLBACK_SIZE;
+
+    if (element) {
+      const { width, height } = element.getBoundingClientRect();
+      if (width < MIN_FIT_WIDTH || height < MIN_FIT_HEIGHT) {
+        return { cols: Math.max(1, terminal.cols), rows: Math.max(1, terminal.rows) };
+      }
+    }
 
     fitAddon.fit();
     const size = {
@@ -62,11 +75,32 @@ export function useTerminalSession(isOpen: boolean) {
 
     const sessionId = sessionIdRef.current;
     if (sessionId) {
-      void terminalResize(sessionId, size);
+      if (ptyResizeTimerRef.current !== null) {
+        window.clearTimeout(ptyResizeTimerRef.current);
+        ptyResizeTimerRef.current = null;
+      }
+
+      if (resizePty === "now") {
+        void terminalResize(sessionId, size);
+      } else {
+        ptyResizeTimerRef.current = window.setTimeout(() => {
+          ptyResizeTimerRef.current = null;
+          const currentSessionId = sessionIdRef.current;
+          if (currentSessionId) void terminalResize(currentSessionId, size);
+        }, PTY_RESIZE_DEBOUNCE_MS);
+      }
     }
 
     return size;
   }, []);
+
+  const scheduleFitAndResize = useCallback(() => {
+    if (resizeFrameRef.current !== null) return;
+    resizeFrameRef.current = window.requestAnimationFrame(() => {
+      resizeFrameRef.current = null;
+      fitAndResize("debounced");
+    });
+  }, [fitAndResize]);
 
   const setTerminalElement = useCallback(
     (element: HTMLDivElement | null) => {
@@ -77,7 +111,7 @@ export function useTerminalSession(isOpen: boolean) {
       if (element && terminalRef.current) {
         terminalRef.current.open(element);
         resizeObserverRef.current?.observe(element);
-        fitAndResize();
+        fitAndResize("now");
       }
     },
     [fitAndResize],
@@ -112,7 +146,7 @@ export function useTerminalSession(isOpen: boolean) {
     });
 
     const resizeObserver = new ResizeObserver(() => {
-      fitAndResize();
+      scheduleFitAndResize();
     });
     if (terminalElementRef.current) resizeObserver.observe(terminalElementRef.current);
     resizeObserverRef.current = resizeObserver;
@@ -139,7 +173,7 @@ export function useTerminalSession(isOpen: boolean) {
         unlistenOutput = outputListener;
         unlistenExit = exitListener;
 
-        const session = await terminalStart(fitAndResize());
+        const session = await terminalStart(fitAndResize("now"));
         if (cancelled) {
           void terminalStop(session.id);
           return;
@@ -147,7 +181,7 @@ export function useTerminalSession(isOpen: boolean) {
 
         sessionIdRef.current = session.id;
         setStatus("running");
-        fitAndResize();
+        fitAndResize("now");
         terminal.focus();
       } catch (error) {
         setStatus("error");
@@ -162,6 +196,14 @@ export function useTerminalSession(isOpen: boolean) {
       unlistenOutput?.();
       unlistenExit?.();
       resizeObserver.disconnect();
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
+      if (ptyResizeTimerRef.current !== null) {
+        window.clearTimeout(ptyResizeTimerRef.current);
+        ptyResizeTimerRef.current = null;
+      }
       dataDisposable.dispose();
       const sessionId = sessionIdRef.current;
       sessionIdRef.current = null;
@@ -172,11 +214,11 @@ export function useTerminalSession(isOpen: boolean) {
       resizeObserverRef.current = null;
       setStatus("idle");
     };
-  }, [fitAndResize, isOpen]);
+  }, [fitAndResize, isOpen, scheduleFitAndResize]);
 
   useEffect(() => {
     if (!isOpen || !terminalRef.current) return;
-    fitAndResize();
+    fitAndResize("now");
     terminalRef.current.focus();
   }, [fitAndResize, isOpen]);
 

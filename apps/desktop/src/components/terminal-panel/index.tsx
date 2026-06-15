@@ -6,19 +6,27 @@ import { useTerminalSession } from "./use-terminal-session";
 interface TerminalPanelProps {
   isOpen: boolean;
   width: number;
+  isResizing: boolean;
   onClose: () => void;
   onResizeStart: (event: React.PointerEvent<HTMLDivElement>) => void;
 }
 
-export function TerminalPanel({ isOpen, width, onClose, onResizeStart }: TerminalPanelProps) {
+export function TerminalPanel({
+  isOpen,
+  width,
+  isResizing,
+  onClose,
+  onResizeStart,
+}: TerminalPanelProps) {
   const root = useWorkspaceRoot();
   const { setTerminalElement, status } = useTerminalSession(isOpen);
 
   return (
     <div
       aria-hidden={!isOpen}
-      className="relative h-full shrink-0 overflow-hidden border-l border-[var(--line-subtler)] bg-[color-mix(in_srgb,var(--bg-base)_96%,transparent)] transition-[width,border-color] duration-150 ease-out data-[closed]:border-transparent"
+      className="relative h-full shrink-0 overflow-hidden border-l border-[var(--line-subtler)] bg-[color-mix(in_srgb,var(--bg-base)_96%,transparent)] transition-[width,border-color] duration-150 ease-out data-[closed]:border-transparent data-[resizing]:transition-none"
       data-closed={!isOpen || undefined}
+      data-resizing={isResizing || undefined}
       style={{ width: isOpen ? width : 0 }}
     >
       <div

@@ -24,7 +24,10 @@ export function AppLayout() {
   const viewportWidth = typeof window === "undefined" ? 1200 : window.innerWidth;
   const maxSidebarWidth = Math.max(280, Math.min(420, Math.floor(viewportWidth * 0.35)));
   const draggingRef = useRef(false);
+  const terminalDraggingRef = useRef(false);
+  const terminalResizeFrameRef = useRef<number | null>(null);
   const [isSidebarDragging, setIsSidebarDragging] = useState(false);
+  const [isTerminalDragging, setIsTerminalDragging] = useState(false);
   const [draftSidebarWidth, setDraftSidebarWidth] = useState(() =>
     clampSidebarWidth(sidebarWidth, maxSidebarWidth),
   );
@@ -114,6 +117,8 @@ export function AppLayout() {
     if (event.button !== 0) return;
 
     event.preventDefault();
+    terminalDraggingRef.current = true;
+    setIsTerminalDragging(true);
     const startX = event.clientX;
     const startWidth = terminalWidthRef.current;
     const previousCursor = document.documentElement.style.cursor;
@@ -126,8 +131,14 @@ export function AppLayout() {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerCancel);
+      if (terminalResizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(terminalResizeFrameRef.current);
+        terminalResizeFrameRef.current = null;
+      }
       document.documentElement.style.cursor = previousCursor;
       document.body.style.userSelect = previousUserSelect;
+      terminalDraggingRef.current = false;
+      setIsTerminalDragging(false);
     };
 
     const setNextWidth = (nextWidth: number) => {
@@ -138,11 +149,23 @@ export function AppLayout() {
     };
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
-      setNextWidth(startWidth + startX - moveEvent.clientX);
+      const nextWidth = startWidth + startX - moveEvent.clientX;
+      if (terminalResizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(terminalResizeFrameRef.current);
+      }
+      terminalResizeFrameRef.current = window.requestAnimationFrame(() => {
+        terminalResizeFrameRef.current = null;
+        if (terminalDraggingRef.current) setNextWidth(nextWidth);
+      });
     };
 
-    const handlePointerUp = () => cleanup();
-    const handlePointerCancel = () => cleanup();
+    const finishDrag = (event?: PointerEvent) => {
+      if (event) setNextWidth(startWidth + startX - event.clientX);
+      cleanup();
+    };
+
+    const handlePointerUp = (upEvent: PointerEvent) => finishDrag(upEvent);
+    const handlePointerCancel = () => finishDrag();
 
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", handlePointerUp);
@@ -210,6 +233,7 @@ export function AppLayout() {
             <TerminalPanel
               isOpen={isTerminalOpen}
               width={terminalWidth}
+              isResizing={isTerminalDragging}
               onClose={closeTerminal}
               onResizeStart={handleTerminalResizeStart}
             />

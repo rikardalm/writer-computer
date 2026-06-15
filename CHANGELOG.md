@@ -2,6 +2,7 @@
 
 ## 2026-06-15
 
+- Smooth embedded terminal resizing by throttling drag updates, disabling resize transitions during drag, and preventing transient tiny PTY sizes from reaching terminal TUIs.
 - Open the right-side embedded terminal at a wider viewport-relative default, and allow it to be resized wider.
 - Add root-level New File and New Folder actions when right-clicking blank space in the sidebar file tree.
 - Switch the bundled Writer dark theme to a readable GitHub Dark Dimmed-inspired palette, and migrate older stored Writer dark values to the new palette on startup.
