@@ -17,6 +17,7 @@ import {
   useSetCommandPaletteSearch,
 } from "@/hooks/use-command-palette";
 import { useSidebar } from "@/hooks/use-sidebar";
+import { useTerminalPanel } from "@/hooks/use-terminal";
 import { useWorkspace } from "@/hooks/use-workspace";
 import {
   useActiveTabId,
@@ -46,6 +47,7 @@ export function CommandPalette() {
   const search = useCommandPaletteSearch();
   const setSearch = useSetCommandPaletteSearch();
   const { toggleSidebar } = useSidebar();
+  const { toggle: toggleTerminal } = useTerminalPanel();
   const { root, isIndexing, openWorkspace, closeWorkspace } = useWorkspace();
   const openFile = useOpenFile();
   const closeActiveTab = useCloseActiveTab();
@@ -97,6 +99,15 @@ export function CommandPalette() {
       description: "Command",
       run: () => {
         toggleSidebar();
+        close();
+      },
+    },
+    root && {
+      id: "toggle-terminal",
+      label: "Toggle Terminal",
+      description: "Command",
+      run: () => {
+        toggleTerminal();
         close();
       },
     },

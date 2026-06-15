@@ -3,6 +3,7 @@ import { Sidebar } from "./sidebar";
 import { EditorArea } from "./editor-area";
 import { EditorTabs } from "./editor-area/editor-tabs";
 import { SidebarToggleButton } from "./sidebar/sidebar-toggle-button";
+import { TerminalToggleButton } from "./terminal-panel/terminal-toggle-button";
 import { useSidebar } from "@/hooks/use-sidebar";
 import { useTerminalPanel } from "@/hooks/use-terminal";
 import { TerminalPanel } from "./terminal-panel";
@@ -156,7 +157,10 @@ export function AppLayout() {
           padding: "var(--chrome-control-padding) 12px var(--chrome-control-padding) 92px",
         }}
       >
-        <SidebarToggleButton />
+        <div className="flex items-center gap-1">
+          <SidebarToggleButton />
+          <TerminalToggleButton />
+        </div>
       </div>
       <div
         className="pointer-events-none absolute top-0 z-40"
