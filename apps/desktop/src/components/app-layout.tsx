@@ -20,7 +20,7 @@ function getDefaultTerminalWidth() {
 
 export function AppLayout() {
   const { isSidebarCollapsed, sidebarWidth, setSidebarWidth } = useSidebar();
-  const { isOpen: isTerminalOpen, close: closeTerminal } = useTerminalPanel();
+  const { isOpen: isTerminalOpen } = useTerminalPanel();
   const viewportWidth = typeof window === "undefined" ? 1200 : window.innerWidth;
   const maxSidebarWidth = Math.max(280, Math.min(420, Math.floor(viewportWidth * 0.35)));
   const draggingRef = useRef(false);
@@ -191,10 +191,10 @@ export function AppLayout() {
         </div>
       </div>
       <div
-        className="pointer-events-auto absolute top-0 right-0 z-50 flex items-center"
+        className="pointer-events-auto absolute top-0 right-0 z-[60] flex items-center"
         style={{
           height: "calc(var(--chrome-control-height) + var(--chrome-control-padding) * 2)",
-          padding: "var(--chrome-control-padding) 12px",
+          padding: "var(--chrome-control-padding) 10px",
         }}
       >
         <TerminalToggleButton />
@@ -242,7 +242,6 @@ export function AppLayout() {
               isOpen={isTerminalOpen}
               width={terminalWidth}
               isResizing={isTerminalDragging}
-              onClose={closeTerminal}
               onResizeStart={handleTerminalResizeStart}
             />
           </div>

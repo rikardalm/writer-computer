@@ -2,6 +2,7 @@
 
 ## 2026-06-15
 
+- Make the top-right appbar terminal button the only terminal close/open control, removing the duplicate close button from the terminal panel header.
 - Add a `Move to` submenu to sidebar file and folder context menus, with valid destination folders and workspace root moves.
 - Improve sidebar drag-and-drop feedback so file rows resolve to their parent folder, accepted drop targets show an accent outline, and closed folders expand while dragging over them.
 - Add sidebar drag-and-drop moves for notes/folders, including dropping onto folders or blank root space, and make `Cmd+B` toggle the sidebar when text editing is not focused.
