@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type DragEvent, type MouseEvent } from "react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
   useDirectoryCache,
@@ -83,6 +83,8 @@ export function FileTree({ rootPath }: FileTreeProps) {
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
+  const [draggedEntry, setDraggedEntry] = useState<DirEntry | null>(null);
+  const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
 
   const entries = directoryCache.get(rootPath) ?? [];
 
@@ -215,6 +217,108 @@ export function FileTree({ rootPath }: FileTreeProps) {
 
   const handleRenameCancel = useCallback(() => {
     setRenamingPath(null);
+  }, []);
+
+  const moveEntry = useCallback(
+    async (entry: DirEntry, targetDir: string) => {
+      const sourceParent = getParentDir(entry.path);
+      if (targetDir === sourceParent) return;
+      if (entry.is_dir && (targetDir === entry.path || targetDir.startsWith(`${entry.path}/`))) {
+        window.alert("Cannot move a folder into itself.");
+        return;
+      }
+
+      const nextPath = `${targetDir}/${entry.name}`;
+      if (await tauri.fileExists(nextPath)) {
+        window.alert(`"${entry.name}" already exists in that folder.`);
+        return;
+      }
+
+      try {
+        await tauri.renameEntry(entry.path, nextPath);
+        if (entry.is_dir) {
+          rewritePathPrefix(entry.path, nextPath);
+          rewriteExpandedDir(entry.path, nextPath);
+          rewritePinnedPath(entry.path, nextPath);
+        } else {
+          renameOpenFile(entry.path, nextPath);
+          rewritePinnedPath(entry.path, nextPath);
+        }
+        await Promise.all([refreshDirectory(sourceParent), refreshDirectory(targetDir)]);
+        if (entry.is_dir) {
+          upsertDirectoryEntry(targetDir, { ...entry, path: nextPath });
+        }
+      } catch (error) {
+        window.alert(`Failed to move: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    },
+    [refreshDirectory, rewriteExpandedDir, rewritePinnedPath, upsertDirectoryEntry],
+  );
+
+  const handleDragStart = useCallback((event: DragEvent<HTMLElement>, entry: DirEntry) => {
+    if (!entry.is_dir && !entry.is_markdown) return;
+    setDraggedEntry(entry);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", entry.path);
+  }, []);
+
+  const handleDragOverEntry = useCallback(
+    (event: DragEvent<HTMLElement>, entry: DirEntry) => {
+      if (!draggedEntry || !entry.is_dir || entry.path === draggedEntry.path) return;
+      if (draggedEntry.is_dir && entry.path.startsWith(`${draggedEntry.path}/`)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "move";
+      setDropTargetPath(entry.path);
+    },
+    [draggedEntry],
+  );
+
+  const handleDragLeaveEntry = useCallback((event: DragEvent<HTMLElement>, entry: DirEntry) => {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+    setDropTargetPath((path) => (path === entry.path ? null : path));
+  }, []);
+
+  const handleDropOnEntry = useCallback(
+    (event: DragEvent<HTMLElement>, entry: DirEntry) => {
+      if (!draggedEntry || !entry.is_dir) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const source = draggedEntry;
+      setDraggedEntry(null);
+      setDropTargetPath(null);
+      void moveEntry(source, entry.path);
+    },
+    [draggedEntry, moveEntry],
+  );
+
+  const handleDragOverRoot = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      if (!draggedEntry) return;
+      if (event.target !== event.currentTarget) return;
+      if (getParentDir(draggedEntry.path) === rootPath) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      setDropTargetPath(rootPath);
+    },
+    [draggedEntry, rootPath],
+  );
+
+  const handleDropOnRoot = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      if (!draggedEntry || event.target !== event.currentTarget) return;
+      event.preventDefault();
+      const source = draggedEntry;
+      setDraggedEntry(null);
+      setDropTargetPath(null);
+      void moveEntry(source, rootPath);
+    },
+    [draggedEntry, moveEntry, rootPath],
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedEntry(null);
+    setDropTargetPath(null);
   }, []);
 
   const handleFileContextMenu = useCallback(
@@ -532,6 +636,8 @@ export function FileTree({ rootPath }: FileTreeProps) {
       <div
         className="min-h-16 flex-1 px-2 text-[13px] text-[var(--text-muted)]"
         onContextMenu={handleRootContextMenu}
+        onDragOver={handleDragOverRoot}
+        onDrop={handleDropOnRoot}
       >
         No files
       </div>
@@ -544,6 +650,9 @@ export function FileTree({ rootPath }: FileTreeProps) {
       role="tree"
       aria-label="File tree"
       onContextMenu={handleRootContextMenu}
+      onDragOver={handleDragOverRoot}
+      onDrop={handleDropOnRoot}
+      data-drop-target={dropTargetPath === rootPath || undefined}
     >
       {flatItems.map((item) => (
         <FileTreeNode
@@ -557,6 +666,12 @@ export function FileTree({ rootPath }: FileTreeProps) {
           onOpenFile={openFile}
           onClick={handleSelectionClick}
           onContextMenu={handleContextMenu}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOverEntry}
+          onDragLeave={handleDragLeaveEntry}
+          onDrop={handleDropOnEntry}
+          onDragEnd={handleDragEnd}
+          isDropTarget={dropTargetPath === item.entry.path}
           onRenameSubmit={handleRenameSubmit}
           onRenameCancel={handleRenameCancel}
           fileLabelMode={fileLabelMode}

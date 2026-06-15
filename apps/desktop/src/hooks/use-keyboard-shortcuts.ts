@@ -67,6 +67,14 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // Cmd+B — toggle sidebar when focus is outside editable text.
+      // CodeMirror owns Cmd+B for bold while the editor has focus.
+      if (mod && e.key === "b" && !isEditableTargetFocused()) {
+        e.preventDefault();
+        toggleSidebar();
+        return;
+      }
+
       // Cmd+J — toggle terminal
       if (mod && e.key === "j") {
         e.preventDefault();

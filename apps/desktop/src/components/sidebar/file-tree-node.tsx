@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, type MouseEvent } from "react";
+import { memo, useEffect, useRef, type DragEvent, type MouseEvent } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight01Icon, File02Icon } from "@hugeicons/core-free-icons";
 import { useIsActive, useResolvedDocumentTitle } from "@/hooks/use-tabs";
@@ -54,6 +54,12 @@ interface FileTreeNodeProps {
   onOpenFile: (path: string) => Promise<void>;
   onClick?: (event: MouseEvent<HTMLElement>, entry: DirEntry) => void;
   onContextMenu?: (event: MouseEvent<HTMLElement>, entry: DirEntry) => void;
+  onDragStart?: (event: DragEvent<HTMLElement>, entry: DirEntry) => void;
+  onDragOver?: (event: DragEvent<HTMLElement>, entry: DirEntry) => void;
+  onDragLeave?: (event: DragEvent<HTMLElement>, entry: DirEntry) => void;
+  onDrop?: (event: DragEvent<HTMLElement>, entry: DirEntry) => void;
+  onDragEnd?: (event: DragEvent<HTMLElement>, entry: DirEntry) => void;
+  isDropTarget?: boolean;
   onRenameSubmit?: (entry: DirEntry, nextStem: string) => void;
   onRenameCancel?: () => void;
   /** Tree-wide label mode from `appearance.sidebar-file-label`. `"filename"`
@@ -72,6 +78,12 @@ export const FileTreeNode = memo(function FileTreeNode({
   onOpenFile,
   onClick,
   onContextMenu,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
+  isDropTarget,
   onRenameSubmit,
   onRenameCancel,
   fileLabelMode,
@@ -156,11 +168,13 @@ export const FileTreeNode = memo(function FileTreeNode({
     );
   }
 
-  const bgClassName = isSelected
+  const bgClassName = isDropTarget
     ? "bg-[var(--surface-selected)]"
-    : isActive
-      ? "bg-[var(--surface-subtle)]"
-      : "hover:bg-[var(--surface-subtle)]";
+    : isSelected
+      ? "bg-[var(--surface-selected)]"
+      : isActive
+        ? "bg-[var(--surface-subtle)]"
+        : "hover:bg-[var(--surface-subtle)]";
 
   return (
     <button
@@ -170,9 +184,17 @@ export const FileTreeNode = memo(function FileTreeNode({
       aria-selected={isActive}
       aria-expanded={entry.is_dir ? isExpanded : undefined}
       aria-label={entry.is_dir ? `${entry.name} folder` : displayName}
-      onMouseDown={(e) => e.preventDefault()}
+      draggable={!isRenaming}
+      onMouseDown={(event) => {
+        if (event.button !== 0) event.preventDefault();
+      }}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
+      onDragStart={(event) => onDragStart?.(event, entry)}
+      onDragOver={(event) => onDragOver?.(event, entry)}
+      onDragLeave={(event) => onDragLeave?.(event, entry)}
+      onDrop={(event) => onDrop?.(event, entry)}
+      onDragEnd={(event) => onDragEnd?.(event, entry)}
       className={`group ${entry.is_dir ? "group/folder " : ""}flex h-[32px] w-full items-center gap-1.5 overflow-hidden rounded-lg pr-2 text-left text-[13px] leading-[1.15] text-[var(--fg-base)] ${bgClassName}`}
       style={{ paddingLeft: depth === 0 ? 10 : depth * 12 + 6 }}
     >

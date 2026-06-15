@@ -14,6 +14,7 @@ These shortcuts are handled by the global `useKeyboardShortcuts` hook and work r
 | Cmd+T           | New tab                       |
 | Cmd+W           | Close current tab             |
 | Cmd+\\          | Toggle sidebar                |
+| Cmd+B           | Toggle sidebar outside editor |
 | Ctrl+Tab        | Next tab                      |
 | Ctrl+Shift+Tab  | Previous tab                  |
 | Cmd+1 ... Cmd+9 | Jump to Nth tab               |

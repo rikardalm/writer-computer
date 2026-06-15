@@ -1,0 +1,21 @@
+# Sidebar Drag Drop and Shortcut
+
+## Problem
+
+- Notes and folders cannot be rearranged from the sidebar; moving them requires external file manager or terminal commands.
+- `Cmd+\` toggles the sidebar, but `Cmd+B` is easier to reach for a sidebar toggle when focus is outside the editor. Inside the editor, `Cmd+B` must remain bold.
+
+## Decisions
+
+- Support one-item drag/drop in the sidebar.
+- Files and folders can be dragged onto folder rows to move into that folder.
+- Files and folders can be dragged onto blank space in the Everything tree to move to the workspace root.
+- Moves reuse the existing `renameEntry` IPC path, with no overwrite on conflicts.
+- Folder moves rewrite open editor paths, expanded directory paths, and pinned paths through the same rename helpers used by folder rename.
+- `Cmd+B` toggles the sidebar only when focus is outside editable text. CodeMirror keeps ownership of `Cmd+B` while the editor is focused.
+
+## Validation
+
+- `vp check`
+- `vp test`
+- `vp run desktop#build`

@@ -2,6 +2,7 @@
 
 ## 2026-06-15
 
+- Add sidebar drag-and-drop moves for notes/folders, including dropping onto folders or blank root space, and make `Cmd+B` toggle the sidebar when text editing is not focused.
 - Keep newly-created empty sidebar folders visible so the root and folder-row New Folder actions enter rename mode instead of appearing to do nothing.
 - Move the embedded terminal toggle from the sidebar controls to the top-right app chrome.
 - Smooth embedded terminal resizing by throttling drag updates, disabling resize transitions during drag, and preventing transient tiny PTY sizes from reaching terminal TUIs.
