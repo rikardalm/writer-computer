@@ -47,7 +47,7 @@ export function TerminalPanel({ isOpen, width, onClose, onResizeStart }: Termina
         </button>
       </div>
       <div className="h-[calc(100%-2rem)] p-2">
-        <div ref={setTerminalElement} className="h-full overflow-hidden" />
+        <div ref={setTerminalElement} className="writer-terminal h-full overflow-hidden" />
       </div>
     </div>
   );

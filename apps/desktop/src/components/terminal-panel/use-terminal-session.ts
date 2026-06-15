@@ -13,6 +13,30 @@ import {
 import "@xterm/xterm/css/xterm.css";
 
 const FALLBACK_SIZE = { cols: 80, rows: 24 };
+const GITHUB_DARK_DIMMED_TERMINAL_THEME = {
+  background: "#22272E",
+  foreground: "#ADBAC7",
+  cursor: "#539BF5",
+  cursorAccent: "#22272E",
+  selectionBackground: "#444C56",
+  selectionForeground: "#ADBAC7",
+  black: "#545D68",
+  red: "#F47067",
+  green: "#57AB5A",
+  yellow: "#C69026",
+  blue: "#539BF5",
+  magenta: "#B083F0",
+  cyan: "#39C5CF",
+  white: "#ADBAC7",
+  brightBlack: "#636E7B",
+  brightRed: "#FF938A",
+  brightGreen: "#6BC46D",
+  brightYellow: "#DAAA3F",
+  brightBlue: "#6CB6FF",
+  brightMagenta: "#D2A8FF",
+  brightCyan: "#56D4DD",
+  brightWhite: "#C8D3DE",
+};
 
 export function useTerminalSession(isOpen: boolean) {
   const terminalRef = useRef<Terminal | null>(null);
@@ -71,14 +95,7 @@ export function useTerminalSession(isOpen: boolean) {
         'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace',
       fontSize: 12,
       lineHeight: 1.25,
-      theme: {
-        background: "transparent",
-        foreground: getComputedStyle(document.documentElement).getPropertyValue("--text-primary"),
-        cursor: getComputedStyle(document.documentElement).getPropertyValue("--accent"),
-        selectionBackground: getComputedStyle(document.documentElement).getPropertyValue(
-          "--editor-selection-bg",
-        ),
-      },
+      theme: GITHUB_DARK_DIMMED_TERMINAL_THEME,
     });
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);

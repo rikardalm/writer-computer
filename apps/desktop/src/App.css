@@ -176,6 +176,17 @@ input {
   user-select: text;
 }
 
+.writer-terminal,
+.writer-terminal .xterm,
+.writer-terminal .xterm-viewport,
+.writer-terminal .xterm-screen {
+  background: #22272e !important;
+}
+
+.writer-terminal .xterm-viewport {
+  scrollbar-color: #636e7b #22272e;
+}
+
 * {
   scroll-padding-block-start: 32px;
   scroll-padding-block-end: 32px;
