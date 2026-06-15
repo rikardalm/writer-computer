@@ -6,6 +6,7 @@
 
 ## Done
 
+- Sidebar drag/drop feedback follow-up: [`SPECs/sidebar-drag-drop-and-shortcut-spec.md`](SPECs/sidebar-drag-drop-and-shortcut-spec.md) — make drag targets visibly respond across the tree and expand closed folders while dragging.
 - Sidebar drag/drop and shortcut: [`SPECs/sidebar-drag-drop-and-shortcut-spec.md`](SPECs/sidebar-drag-drop-and-shortcut-spec.md) — move notes and folders by dragging them onto sidebar folders or blank root space, and let `Cmd+B` toggle the sidebar when text editing is not focused.
 - Terminal and sidebar polish: [`SPECs/terminal-sidebar-polish-spec.md`](SPECs/terminal-sidebar-polish-spec.md) — open the right-side terminal at a wider viewport-relative default and add root-level New File/New Folder actions when right-clicking blank space in the sidebar tree.
 - Embedded terminal: [`SPECs/embedded-terminal-spec.md`](SPECs/embedded-terminal-spec.md) — add a workspace-root integrated terminal panel to the desktop app so shell commands can run without switching to an external terminal.

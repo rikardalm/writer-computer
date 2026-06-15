@@ -85,6 +85,8 @@ export function FileTree({ rootPath }: FileTreeProps) {
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
   const [draggedEntry, setDraggedEntry] = useState<DirEntry | null>(null);
   const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
+  const [dropTargetEntryPath, setDropTargetEntryPath] = useState<string | null>(null);
+  const [dropTargetDepth, setDropTargetDepth] = useState<number | null>(null);
 
   const entries = directoryCache.get(rootPath) ?? [];
 
@@ -95,6 +97,14 @@ export function FileTree({ rootPath }: FileTreeProps) {
     () => flattenTree(entries, 0, directoryCache, expandedDirs),
     [directoryCache, entries, expandedDirs],
   );
+
+  const entryDepthByPath = useMemo(() => {
+    const depths = new Map<string, number>();
+    for (const item of flatItems) {
+      depths.set(item.entry.path, item.depth);
+    }
+    return depths;
+  }, [flatItems]);
 
   // Clear selection on Escape
   useEffect(() => {
@@ -262,34 +272,73 @@ export function FileTree({ rootPath }: FileTreeProps) {
     event.dataTransfer.setData("text/plain", entry.path);
   }, []);
 
-  const handleDragOverEntry = useCallback(
-    (event: DragEvent<HTMLElement>, entry: DirEntry) => {
-      if (!draggedEntry || !entry.is_dir || entry.path === draggedEntry.path) return;
-      if (draggedEntry.is_dir && entry.path.startsWith(`${draggedEntry.path}/`)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.dataTransfer.dropEffect = "move";
-      setDropTargetPath(entry.path);
+  const resolveDropDir = useCallback(
+    (entry: DirEntry): string | null => {
+      if (!draggedEntry) return null;
+
+      const targetDir = entry.is_dir ? entry.path : getParentDir(entry.path);
+      if (targetDir === getParentDir(draggedEntry.path)) return null;
+      if (targetDir === draggedEntry.path) return null;
+      if (draggedEntry.is_dir && targetDir.startsWith(`${draggedEntry.path}/`)) return null;
+
+      return targetDir;
     },
     [draggedEntry],
   );
 
+  useEffect(() => {
+    if (!dropTargetPath || !draggedEntry) return;
+    if (dropTargetPath === rootPath) return;
+    if (expandedDirs.has(dropTargetPath)) return;
+    const target = flatItems.find((item) => item.entry.path === dropTargetPath)?.entry;
+    if (!target?.is_dir) return;
+
+    const timeout = window.setTimeout(() => {
+      void toggleDirectory(dropTargetPath);
+    }, 650);
+
+    return () => window.clearTimeout(timeout);
+  }, [draggedEntry, dropTargetPath, expandedDirs, flatItems, rootPath, toggleDirectory]);
+
+  const handleDragOverEntry = useCallback(
+    (event: DragEvent<HTMLElement>, entry: DirEntry) => {
+      const targetDir = resolveDropDir(entry);
+      if (!targetDir) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "move";
+      setDropTargetPath(targetDir);
+      setDropTargetEntryPath(entry.path);
+      setDropTargetDepth(entryDepthByPath.get(targetDir) ?? null);
+    },
+    [entryDepthByPath, resolveDropDir],
+  );
+
   const handleDragLeaveEntry = useCallback((event: DragEvent<HTMLElement>, entry: DirEntry) => {
     if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-    setDropTargetPath((path) => (path === entry.path ? null : path));
+    setDropTargetPath((path) => {
+      const entryPaths = new Set([entry.path, getParentDir(entry.path)]);
+      if (!path || !entryPaths.has(path)) return path;
+      setDropTargetEntryPath(null);
+      setDropTargetDepth(null);
+      return null;
+    });
   }, []);
 
   const handleDropOnEntry = useCallback(
     (event: DragEvent<HTMLElement>, entry: DirEntry) => {
-      if (!draggedEntry || !entry.is_dir) return;
+      const targetDir = resolveDropDir(entry);
+      if (!draggedEntry || !targetDir) return;
       event.preventDefault();
       event.stopPropagation();
       const source = draggedEntry;
       setDraggedEntry(null);
       setDropTargetPath(null);
-      void moveEntry(source, entry.path);
+      setDropTargetEntryPath(null);
+      setDropTargetDepth(null);
+      void moveEntry(source, targetDir);
     },
-    [draggedEntry, moveEntry],
+    [draggedEntry, moveEntry, resolveDropDir],
   );
 
   const handleDragOverRoot = useCallback(
@@ -300,6 +349,8 @@ export function FileTree({ rootPath }: FileTreeProps) {
       event.preventDefault();
       event.dataTransfer.dropEffect = "move";
       setDropTargetPath(rootPath);
+      setDropTargetEntryPath(null);
+      setDropTargetDepth(0);
     },
     [draggedEntry, rootPath],
   );
@@ -311,6 +362,8 @@ export function FileTree({ rootPath }: FileTreeProps) {
       const source = draggedEntry;
       setDraggedEntry(null);
       setDropTargetPath(null);
+      setDropTargetEntryPath(null);
+      setDropTargetDepth(null);
       void moveEntry(source, rootPath);
     },
     [draggedEntry, moveEntry, rootPath],
@@ -319,6 +372,8 @@ export function FileTree({ rootPath }: FileTreeProps) {
   const handleDragEnd = useCallback(() => {
     setDraggedEntry(null);
     setDropTargetPath(null);
+    setDropTargetEntryPath(null);
+    setDropTargetDepth(null);
   }, []);
 
   const handleFileContextMenu = useCallback(
@@ -634,7 +689,11 @@ export function FileTree({ rootPath }: FileTreeProps) {
   if (flatItems.length === 0) {
     return (
       <div
-        className="min-h-16 flex-1 px-2 text-[13px] text-[var(--text-muted)]"
+        className={`min-h-16 flex-1 rounded-lg px-2 text-[13px] text-[var(--text-muted)] ${
+          dropTargetPath === rootPath
+            ? "bg-[var(--surface-selected)] outline outline-1 outline-[var(--accent)]"
+            : ""
+        }`}
         onContextMenu={handleRootContextMenu}
         onDragOver={handleDragOverRoot}
         onDrop={handleDropOnRoot}
@@ -646,7 +705,11 @@ export function FileTree({ rootPath }: FileTreeProps) {
 
   return (
     <div
-      className="flex min-h-16 flex-1 flex-col gap-px"
+      className={`flex min-h-16 flex-1 flex-col gap-px rounded-lg ${
+        dropTargetPath === rootPath
+          ? "bg-[var(--surface-subtle)] outline outline-1 outline-[var(--accent)]"
+          : ""
+      }`}
       role="tree"
       aria-label="File tree"
       onContextMenu={handleRootContextMenu}
@@ -671,7 +734,10 @@ export function FileTree({ rootPath }: FileTreeProps) {
           onDragLeave={handleDragLeaveEntry}
           onDrop={handleDropOnEntry}
           onDragEnd={handleDragEnd}
-          isDropTarget={dropTargetPath === item.entry.path}
+          isDropTarget={
+            dropTargetPath === item.entry.path || dropTargetEntryPath === item.entry.path
+          }
+          dropTargetDepth={dropTargetDepth}
           onRenameSubmit={handleRenameSubmit}
           onRenameCancel={handleRenameCancel}
           fileLabelMode={fileLabelMode}

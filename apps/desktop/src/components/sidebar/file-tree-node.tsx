@@ -60,6 +60,7 @@ interface FileTreeNodeProps {
   onDrop?: (event: DragEvent<HTMLElement>, entry: DirEntry) => void;
   onDragEnd?: (event: DragEvent<HTMLElement>, entry: DirEntry) => void;
   isDropTarget?: boolean;
+  dropTargetDepth?: number | null;
   onRenameSubmit?: (entry: DirEntry, nextStem: string) => void;
   onRenameCancel?: () => void;
   /** Tree-wide label mode from `appearance.sidebar-file-label`. `"filename"`
@@ -84,6 +85,7 @@ export const FileTreeNode = memo(function FileTreeNode({
   onDrop,
   onDragEnd,
   isDropTarget,
+  dropTargetDepth,
   onRenameSubmit,
   onRenameCancel,
   fileLabelMode,
@@ -169,7 +171,7 @@ export const FileTreeNode = memo(function FileTreeNode({
   }
 
   const bgClassName = isDropTarget
-    ? "bg-[var(--surface-selected)]"
+    ? "bg-[var(--surface-selected)] text-[var(--fg-base)] shadow-[inset_0_0_0_1px_var(--accent)]"
     : isSelected
       ? "bg-[var(--surface-selected)]"
       : isActive
@@ -195,9 +197,19 @@ export const FileTreeNode = memo(function FileTreeNode({
       onDragLeave={(event) => onDragLeave?.(event, entry)}
       onDrop={(event) => onDrop?.(event, entry)}
       onDragEnd={(event) => onDragEnd?.(event, entry)}
-      className={`group ${entry.is_dir ? "group/folder " : ""}flex h-[32px] w-full items-center gap-1.5 overflow-hidden rounded-lg pr-2 text-left text-[13px] leading-[1.15] text-[var(--fg-base)] ${bgClassName}`}
+      className={`group relative ${entry.is_dir ? "group/folder " : ""}flex h-[32px] w-full items-center gap-1.5 overflow-hidden rounded-lg pr-2 text-left text-[13px] leading-[1.15] text-[var(--fg-base)] ${bgClassName}`}
       style={{ paddingLeft: depth === 0 ? 10 : depth * 12 + 6 }}
     >
+      {isDropTarget &&
+      !entry.is_dir &&
+      dropTargetDepth !== null &&
+      dropTargetDepth !== undefined ? (
+        <span
+          className="pointer-events-none absolute h-5 w-0.5 rounded-full bg-[var(--accent)]"
+          style={{ left: dropTargetDepth === 0 ? 12 : dropTargetDepth * 12 + 8 }}
+          aria-hidden="true"
+        />
+      ) : null}
       <span className="relative flex w-5 shrink-0 items-center justify-center">
         {entry.is_dir ? (
           <>
